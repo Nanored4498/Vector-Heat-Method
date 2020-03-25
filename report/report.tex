@@ -9,12 +9,21 @@
 \usepackage{tikz}
 \usepackage{bbm}
 \usepackage{hyperref}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 
 \newcommand{\trans}{\mathsf{T}}
 \newcommand{\syst}[2]{\left\{ \begin{array}{#1} #2 \end{array} \right.}
 \newcommand{\pmat}[1]{\begin{pmatrix} #1 \end{pmatrix}}
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\N}{\mathbb{N}}
+
+\DeclareMathOperator{\trace}{tr}
+\DeclareMathOperator{\grad}{grad}
+\DeclareMathOperator{\divergence}{div}
+\DeclareMathOperator{\connexionLaplacian}{\Delta^{\hspace{-3pt} \nabla}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
 
 \title{
 	\noindent\rule{\linewidth}{0.4pt}
@@ -31,7 +40,7 @@
 	
 	\section{Etude synthétique de l'article}
 	
-	Environ 2 pages
+	\emph{Environ 2 pages} \\
 	
 	\paragraph{Problème traité}
 	Le papier propose une méthode pour transporter parallèlement un vecteur selon les géodésiques d'une variété. Cette méthode donne par la suite, la possibilité de calculer le $\log$ riemannien de manière efficace, de calculer des moyennes de Fréchet, ou encore de construire des diagrammes de Voronoï.
@@ -52,11 +61,71 @@
 	
 	\section{Résumé}
 	
-	Environ 3 pages
+	\emph{Environ 3 pages} \\
+	
+	\subsection{Source unique}
+	Pour un champs scalaire $\phi_t$ qui évolue au cours du temps on rappelle que l'équation de la chaleur s'écrit :
+	$$ \frac{d}{dt} \phi_t = \Delta \phi_t $$
+	Où $\Delta$ est l'opérateur Laplacien défini comme la divergence du gradient ou encore, comme la trace de la Hessienne :
+	$$ \Delta f = \trace \left( H(f) \right) = \divergence \circ \grad f $$
+	Pour un champs de vecteur on peut définir une équation de la chaleur de manière similaire. On remplace simplement le gradient par une dérivée covariante/connexion. Et on remplace les opérateurs qui découlent directement du gradient par les opérateurs qui découlent directement d'une connexion. Le papier propose naturellement la connexion de Levi-Civita $\nabla$. On peut alors définir un Laplacien de connexion $\connexionLaplacian$ par :
+	$$ \connexionLaplacian X = \trace \left( \nabla^2 X \right) = - \nabla^* \nabla X $$
+	Où la dérivée covariante seconde est définie comme suit :
+	$$ \nabla^2_{X, Y} Z = \nabla_X \nabla_Y Z - \nabla_{\nabla_X Y} Z $$
+	Et où $\nabla^*$ est l'adjoint de la connexion.
+	En prenant pour champs de vecteur au temps zéro, $X_0 = \delta_x v$ le champs valant $v$ en $x$ et nul partout ailleurs, la solution de l'équation de la chaleur vectorielle s'écrit alors :
+	$$ k_t^\nabla(x, y) \cdot v = \frac{e^{-d(x, y)^2 / 4t}}{(4 \pi t)^{n/2}} j(x, y)^{-1/2} \left( \sum_{i=0}^\infty t^i \Psi_i(x, y) \right) \cdot v $$
+	Où la première fonction de la série est l'opérateur de transport parallèle le long de la géodésique minimale entre $x$ et $y$ :
+	$$ \Psi_0(x, y) = P_{\gamma_{x \rightarrow y}} $$
+	En ce sens, lorsque $t$ tend vers 0, la solution se trouve être le transport parallèle de $v$ selon les géodésiques à une constante multiplicative près variant selon la position $y$. Cette constante multiplicative est la solution de l'équation de la chaleur scalaire partant d'un champs initial $\phi_0 = \delta_x |v|$ valant la norme de $v$ en $x$ et étant nul partout ailleurs. On note cette solution $k_t(x, y)$, et on obtient :
+	$$ \lim_{t \rightarrow 0} \frac{k_t^\nabla(x, y)}{k_t(x, y)} = P_{\gamma_{x \rightarrow y}} $$
+	
+	\subsection{Multiples sources}
+	
+	Dans le cas où notre champ initial n'est plus un simple Dirac mais une partie $\Omega \subset M$ de notre variété, on souhaite que le vecteur obtenu au point $q$ soit le transporté du vecteur au point $p$ de $\Omega$ le plus proche. On note alors $X$ le champs de vecteur initial nul sur $M \setminus \Omega$, et $\bar{X}$ le champ obtenu par transport parallèle. On utilisera la notation $X|_p$ pour la valeur du champ $X$ au point $p$. On souhaite obtenir le champ suivant :
+	$$ \bar{X}|_q = \syst{ll}{
+		X|_q & \text{Si } q \in \Omega \\
+		P_{\gamma_{p \rightarrow q}} \cdot X|_p & \text{Si } q \notin \Omega \text{ et } p = \argmin_{r \in \Omega} d(q, r)
+	} $$
+	Soit alors deux scalaires distincts $u$ et $v$ et deux positions $x$ et $y$ sur $M$. On remarque la limite suivante :
+	$$ \lim_{t \rightarrow 0} \frac{u k_t(x, z) + v k_t(y, z)}{k_t(x, z) + k_t(y, z)} = \syst{ll}{
+		u & \text{Si } d(x, z) < d(y, z) \\
+		v & \text{Si } d(x, z) > d(y, z) \\
+		(u+v) / 2 & \text{Si } d(x, z) = d(y, z) \\
+	} $$
+	Le numérateur est la solution de la diffusion de $\delta_x u + \delta_y v$ alors que le dénominateur est la solution de $\delta_x + \delta_y$. La fraction constituée retourne ainsi la valeur associée point le plus proche. On peut étendre cette idée à un domaine $\Omega$ quelconque afin de renormaliser correctement notre champ vectorielle après diffusion. Il suffit alors de considéré les solutions des équations suivantes :
+	$$ \frac{d}{dt} u_t = \Delta u_t \qquad \text{avec } \quad u_0 = | X | $$
+	$$ \frac{d}{dt} \phi_t = \Delta \phi_t \qquad \text{avec } \quad \phi_0 = \mathbbm{1}_\Omega $$
+	Puis on définira la norme de $\bar{X}$ via :
+	$$ | \bar{X} | = u_t / \phi_t $$
+	La direction de $\bar{X}$ en revanche sera celle obtenue via la résolution de l'équation de la chaleur au temps $t$ partant de la condition initiale $\bar{X}_0 = X$. Cela permet alors de définir l'algorithme \ref{alg:VHM} pour calculer le transport parallèle d'un champ de vecteur.
+	\begin{algorithm}[h]
+		\caption{Vector Heat Method}
+		\label{alg:VHM}
+		\begin{algorithmic}
+			\State \textbf{Entrée:} Un champ de vecteur $X$ sur une partie $\Omega$ d'une variété $M$.
+			\State \textbf{Sortie:} Un champ de vecteur $\bar{X}$ sur $M$ tout entier.
+			\State \hspace{10pt} I. \; Résoudre $\frac{d}{dt} Y_t = \connexionLaplacian Y_t$ au temps $t$ avec la condition initiale $Y_0 = X$.
+			\State \hspace{6pt} II. \; Résoudre $\frac{d}{dt} u_t = \Delta u_t$ au temps $t$ avec la condition initiale $u_0 = |X|$.
+			\State \, III. \; Résoudre $\frac{d}{dt} \phi_t = \Delta \phi_t$ au temps $t$ avec la condition initiale $\phi_0 = \mathbbm{1}_\Omega$.
+			\State \hspace{3pt} IV. \; Construire le champ de vecteur $\bar{X}_t = ( u_t Y_t) / (\phi_t |Y_t|)$.
+		\end{algorithmic}
+	\end{algorithm}
 	
 	\appendix
 	
 	\bibliographystyle{alpha}
 	\bibliography{bib.bib}
+	
+	\section{Compléments de géométrie différentielle}
+	
+	Cette section a pour but de clarifier certaines notions non abordées dans les cours qui traitent de géométrie différentielle au sein du master MVA. On utilisera la convention de sommation d'Einstein.
+	
+	\subsection{Seconde dérivée covariante}
+	
+	On souhaite définir un opérateur linéaire de second ordre $\nabla^2$ à l'aide d'une dérivée covariante $\nabla$. Soit $X, Y$ et $Z$ des champs de vecteurs. Par linéarité on doit avoir.
+	$$ \nabla_{X, Y}^2 Z = X^i Y^j \nabla_{i, j}^2 Z = X^i Y^j \nabla_i \left( \nabla_j Z \right) $$
+	Or on a aussi :
+	$$ \nabla_X \left( \nabla_Y Z \right) = X^i \nabla_i \left( Y^j \nabla_j Z \right) = X^i Y^j \nabla_i \left( \nabla_j Z \right) + X^i \left( \nabla_i Y^j \right) \left( \nabla_j Z \right) = \nabla_{X, Y}^2 Z + \left( \nabla_X Y^j \right) \left( \nabla_j Z \right) $$
 
 \end{document}
