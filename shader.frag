@@ -3,6 +3,7 @@
 uniform vec3 light_position_eye;
 uniform float specular_exponent;
 uniform float lighting_factor;
+uniform vec4 fixed_color;
 
 in vec3 position_eye;
 in vec3 normal_eye;
@@ -33,4 +34,5 @@ void main() {
 	vec3 Is = Ls * vec3(Ksi) * specular_factor;    // specular intensity
 
 	outColor = vec4(lighting_factor * (Is + Id) + (1.0-lighting_factor) * Kdiq, Kdi.a);
+    if (fixed_color != vec4(0.0)) outColor = fixed_color;
 }

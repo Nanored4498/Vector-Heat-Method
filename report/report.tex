@@ -19,7 +19,7 @@
 \title{
 	\noindent\rule{\linewidth}{0.4pt}
 	{ \huge Modèles Déformables et Méthodes Géodésiques en Analyse d’images } \\
-	Projet : The Vector Heat Method
+	Projet : The Vector Heat Method \cite{VHM}
 	\noindent\rule{\linewidth}{1pt}
 }
 
@@ -34,20 +34,29 @@
 	Environ 2 pages
 	
 	\paragraph{Problème traité}
-	Le papier propose une méthode pour transporter parallèlement un vecteur sur une variété.
+	Le papier propose une méthode pour transporter parallèlement un vecteur selon les géodésiques d'une variété. Cette méthode donne par la suite, la possibilité de calculer le $\log$ riemannien de manière efficace, de calculer des moyennes de Fréchet, ou encore de construire des diagrammes de Voronoï.
 	
 	\paragraph{Equations et méthodes numériques utilisées}
+	L'équation de la chaleur est utilisée pour calculer les distances géodésiques. Comme on a pu le voir en TP, cette méthode est très efficace et converge sous certaines conditions vers les vrais distances géodésiques. Ainsi les géodésiques ne sont pas calculées explicitement. Ces calculs généralement complexes sont remplacés par de simples résolutions de systèmes linéaires creux. Ces systèmes sont définis avec un Laplacien qui est défini sur beaucoup de types de données différentes (maillages, nuages de points, voxels ...) ce qui en fait un point fort de ce papier, l'adaptabilité.
 	
 	\paragraph{Comparaison avec le cours}
+	On retrouve l'équation de la chaleur que nous avons utilisé dans un TP pour calculer des distances géodésiques et pour échantillonner un maillage à faces triangulaires.
 	
 	\paragraph{Originalité (selon les auteurs)}
+	Ce papier est dans la continuité d'un précédent papier de Keenan Crane, sur le calcul des distances géodésiques via l'équation de la chaleur \cite{HM}. Leur approche est original dans le sens où ils semblent être les seuls à avoir creuser cette approche par l'équation de la chaleur pour le transport parallèle. Les approches précédentes se basaient généralement sur un calcul explicite des géodésiques. Or calculer toutes les distances à partir d'un sommet de manière exacte a une complexité en $\mathcal{O}(n^2 \log n)$, où $n$ est le nombre d'arrêtes. Cette complexité est bien trop grande et les algorithmes qui approximent ces géodésiques à moindre coût peuvent donner des résultats trop différents. Ici la solution proposé possède une complexité proche de $\mathcal{O}(n)$.
 	
 	\paragraph{Résultats nouveaux}
+	Selon les auteurs, ils sont les premiers à proposé un calcul de la carte logarithme efficace. Selon une figure donnée dans l'article les anciennes méthodes engendraient des erreurs non négligeables sur l'orientation pour les sommets assez éloignés du sommet initial. Ce résultats entraîne immédiatement une première méthode de calcul de moyennes de Fréchet précise et efficace.
 	
 	\paragraph{Faiblesses}
 	
 	\section{Résumé}
 	
 	Environ 3 pages
+	
+	\appendix
+	
+	\bibliographystyle{alpha}
+	\bibliography{bib.bib}
 
 \end{document}
