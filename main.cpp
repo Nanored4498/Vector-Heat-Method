@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
 	// Create the peak height field
 	Eigen::MatrixXi F;
 	Eigen::MatrixXd V;
-	igl::read_triangle_mesh( argc>1?argv[1]: "../meshes/bunny.obj",V,F);
+	igl::read_triangle_mesh(argc>1?argv[1]: "../meshes/bunny.obj",V,F);
 
 	// Precomputation
 	igl::HeatGeodesicsData<double> data;
@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
 	Eigen::Matrix<double, 1, 3> col(0.7, 0.8, 1);
 	double coeff = std::sqrt(t) / G.rowwise().norm().mean();
 	Eigen::MatrixX3d C = ((V.col(0).array() - V.col(0).minCoeff()) / (V.col(0).maxCoeff() - V.col(0).minCoeff())).replicate(1, 3);
-	viewer.data().line_width = 2;
+	viewer.data().line_width = 1.5;
 	viewer.data().add_edges(B, B+coeff*G, col);
 
 	// Show mesh
