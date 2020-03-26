@@ -7,6 +7,7 @@
 #include <igl/opengl/destroy_shader_program.h>
 
 #include <igl/barycenter.h>
+#include "heat_vector.h"
 
 #include <iostream>
 #include <fstream>
@@ -16,6 +17,13 @@ int main(int argc, char *argv[]) {
 	Eigen::MatrixXi F;
 	Eigen::MatrixXd V;
 	igl::read_triangle_mesh(argc>1?argv[1]: "../meshes/bunny.obj",V,F);
+
+	// Precomputation for vector heat method [In build]
+	igl::HeatVectorData<double> hvm_data;
+	if(!igl::heat_vector_precompute(V, F, hvm_data)) {
+		std::cerr << "Error: heat_vector_precompute failed." << std::endl;
+		exit(EXIT_FAILURE);
+	};
 
 	// Precomputation
 	igl::HeatGeodesicsData<double> data;

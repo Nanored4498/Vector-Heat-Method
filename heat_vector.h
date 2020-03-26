@@ -1,5 +1,5 @@
-#ifndef IGL_HEAT_VECTOR_H
-#define IGL_HEAT_VECTOR_H
+#ifndef HEAT_VECTOR_H
+#define HEAT_VECTOR_H
 
 #include <igl/heat_geodesics.h>
 
