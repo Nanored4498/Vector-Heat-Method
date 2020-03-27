@@ -116,16 +116,28 @@ int main(int argc, char *argv[]) {
 		return true;
 	};
 
-	Eigen::MatrixX3d B;
-	igl::barycenter(V, F, B);
-	Eigen::MatrixX3d G = Eigen::Map<const Eigen::MatrixX3d>((data.Grad * V.col(0)).eval().data(), F.rows(), 3);
 	Eigen::Matrix<double, 1, 3> col(0.7, 0.8, 1);
-	double coeff = std::sqrt(t) / G.rowwise().norm().mean();
+	// Eigen::MatrixX3d B;
+	// igl::barycenter(V, F, B);
+	// Eigen::MatrixX3d G = Eigen::Map<const Eigen::MatrixX3d>((data.Grad * V.col(0)).eval().data(), F.rows(), 3);
+	// double coeff = std::sqrt(t) / G.rowwise().norm().mean();
+	// viewer.data().add_edges(B, B+coeff*G, col);
+	const int nt = 8;
+	Eigen::MatrixX3d Vec(nt*V.rows(), 3);
+	Eigen::Matrix<double, 1, 3> vec;
+	for(int vert = 0; vert < V.rows(); ++vert) {
+		for(int i = 0; i < nt; ++i) {
+			igl::complex_to_vector(V, hvm_data, vert, std::polar(0.4*std::sqrt(t), (2*M_PI*i)/nt), vec);
+			Vec.row(vert+i*V.rows()) = vec;
+		}
+	}
+	Eigen::MatrixX3d P = V.replicate(nt, 1);
+	viewer.data().add_edges(P, P+Vec, col);
+
 	Eigen::MatrixX3d C = ((V.col(0).array() - V.col(0).minCoeff()) / (V.col(0).maxCoeff() - V.col(0).minCoeff())).replicate(1, 3);
-	viewer.data().line_width = 1.5;
-	viewer.data().add_edges(B, B+coeff*G, col);
 
 	// Show mesh
+	viewer.data().line_width = 1.5;
 	viewer.data().set_mesh(V, F);
 	viewer.data().set_colors(C);
 	viewer.data().show_lines = false;

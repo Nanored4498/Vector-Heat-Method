@@ -3,12 +3,32 @@
 
 #include <igl/heat_geodesics.h>
 
+#include <vector>
+
 namespace igl {
 
 template <typename Scalar>
 struct HeatVectorData {
 	HeatGeodesicsData<Scalar> scalar_data;
+	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> vertex_normals;
+	std::vector<std::vector<std::pair<int, Scalar>>> neighbors;
 };
+
+template <typename DerivedV, typename Scalar>
+void complex_to_vector(
+	const Eigen::MatrixBase<DerivedV> &V,
+	const HeatVectorData<Scalar> &data,
+	int vertex,
+	const std::complex<Scalar> &c,
+	Eigen::Matrix<Scalar, 1, 3> &vec);
+
+template <typename DerivedV, typename Scalar>
+void vector_to_complex(
+	const Eigen::MatrixBase<DerivedV> &V,
+	const HeatVectorData<Scalar> &data,
+	int vertex,
+	const Eigen::Matrix<Scalar, 1, 3> &vec,
+	std::complex<Scalar> &c);
 
 // Precompute factorized solvers for computing a fast approximation of
 // parallel transport along geodesics on a mesh (V,F). [Sharp et al. 2019]
