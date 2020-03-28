@@ -34,15 +34,15 @@ void igl::complex_to_vector(
 
 }
 
-template <typename DerivedV, typename Scalar>
+template <typename Scalar>
 void igl::vector_to_complex(
-	const Eigen::MatrixBase<DerivedV> &V,
 	const HeatVectorData<Scalar> &data,
 	int vertex,
 	const Eigen::Matrix<Scalar, 1, 3> &vec,
 	std::complex<Scalar> &c) {
 
-	;
+	c.real(data.e0.row(vertex).dot(vec));
+	c.imag(data.e1.row(vertex).dot(vec));
 
 }
 
@@ -92,10 +92,11 @@ bool igl::heat_vector_precompute(
 		}
 	}
 
-	// Neighborhoods, vertex normals and phi
+	// Neighborhoods, vertex tangent plance basis and phi
 	MatrixX3S face_normals(m, 3);
 	igl::per_face_normals(V, F, face_normals);
-	data.vertex_normals = MatrixX3S::Zero(n, 3);
+	data.e0.resize(n, 3);
+	data.e1 = MatrixX3S::Zero(n, 3);
 	data.neighbors.clear();
 	data.neighbors.resize(n);
 	std::vector<std::map<int, Scalar>> phi_map(n);
@@ -106,9 +107,15 @@ bool igl::heat_vector_precompute(
 		for(std::pair<int, std::pair<int, int>> j : edge_to_face[i]) {
 			if(!edge_to_face[j.first].count(i))
 				j0 = j.first;
-			data.vertex_normals.row(i) += face_normals.row(j.second.first);
+			data.e1.row(i) += face_normals.row(j.second.first);
 		}
-		data.vertex_normals.row(i).normalize();
+		// Tangent plane basis
+		data.e1.row(i).normalize();
+		data.e0.row(i) = V.row(j0) - V.row(i);
+		data.e0.row(i) -= data.e1.row(i).dot(data.e0.row(i)) * data.e1.row(i);
+		data.e0.row(i).normalize();
+		data.e1.row(i) = data.e1.row(i).cross(data.e0.row(i));
+		// Phi
 		Scalar phi = 0;
 		Scalar factor = 2 * M_PI / sumTheta(i);
 		int j = j0;
@@ -173,9 +180,14 @@ void igl::heat_vector_solve(
 template void igl::complex_to_vector<Eigen::Matrix<double, -1, -1, 0, -1, -1>, double>(
 	Eigen::MatrixBase<Eigen::Matrix<double, -1, -1, 0, -1, -1>> const&,
 	HeatVectorData<double> const&,
-	int vertex,
-	const std::complex<double> &c,
-	Eigen::Matrix<double, 1, 3> &vec);
+	int,
+	const std::complex<double> &,
+	Eigen::Matrix<double, 1, 3> &);
+template void igl::vector_to_complex<double>(
+	HeatVectorData<double> const&,
+	int,
+	const Eigen::Matrix<double, 1, 3> &,
+	std::complex<double> &);
 template bool igl::heat_vector_precompute<Eigen::Matrix<double, -1, -1, 0, -1, -1>, Eigen::Matrix<int, -1, -1, 0, -1, -1>, double>(
 	Eigen::MatrixBase<Eigen::Matrix<double, -1, -1, 0, -1, -1>> const&,
 	Eigen::MatrixBase<Eigen::Matrix<int, -1, -1, 0, -1, -1>> const&,

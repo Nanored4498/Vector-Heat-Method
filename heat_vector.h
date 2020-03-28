@@ -10,8 +10,10 @@ namespace igl {
 template <typename Scalar>
 struct HeatVectorData {
 	HeatGeodesicsData<Scalar> scalar_data;
-	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> vertex_normals;
+	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> e0, e1;
 	std::vector<std::vector<std::pair<int, Scalar>>> neighbors;
+
+	bool& use_intrinsic_delaunay() { return scalar_data.use_intrinsic_delaunay; }
 };
 
 template <typename DerivedV, typename Scalar>
@@ -22,9 +24,8 @@ void complex_to_vector(
 	const std::complex<Scalar> &c,
 	Eigen::Matrix<Scalar, 1, 3> &vec);
 
-template <typename DerivedV, typename Scalar>
+template <typename Scalar>
 void vector_to_complex(
-	const Eigen::MatrixBase<DerivedV> &V,
 	const HeatVectorData<Scalar> &data,
 	int vertex,
 	const Eigen::Matrix<Scalar, 1, 3> &vec,
