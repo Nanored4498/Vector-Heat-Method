@@ -3,7 +3,6 @@
 #include <igl/avg_edge_length.h>
 #include <igl/squared_edge_lengths.h>
 #include <igl/per_face_normals.h>
-#include <igl/is_symmetric.h> 
 
 #include <map>
 #include <iostream>
@@ -93,14 +92,11 @@ bool igl::heat_vector_precompute(
 	VectorXS faceArea(m);
 	std::vector<std::map<int, std::pair<int, int>>> edge_to_face(n);
 	for(int i = 0; i < m; ++i) {
-		Scalar sl2 = l2.row(i).sum();
-		Scalar pl2 = l2.row(i).prod();
 		Scalar dblA = std::sqrt(l2(i, 1) * l2(i, 2));
 		theta(i, 0) = std::acos(.5 * (l2(i, 1) + l2(i, 2) - l2(i, 0)) / dblA);
-		dblA *= std::sin(theta(i, 0));
-		theta(i, 1) = std::asin(dblA / std::sqrt(l2(i, 0) * l2(i, 2)));
+		theta(i, 1) = std::acos(.5 * (l2(i, 0) + l2(i, 2) - l2(i, 1)) / std::sqrt(l2(i, 0) * l2(i, 2)));
 		theta(i, 2) = M_PI - theta(i, 0) - theta(i, 1);
-		faceArea(i) = 0.5 * dblA;
+		faceArea(i) = 0.5 * std::sin(theta(i, 0)) * dblA;
 		for(int j = 0; j < 3; ++j) {
 			sumTheta(F(i, j)) += theta(i, j);
 			edge_to_face[F(i, j)][F(i, (j+1)%3)] = {i, j};
@@ -164,6 +160,14 @@ bool igl::heat_vector_precompute(
 	cIJV.clear();
 	cIJV.reserve(4*num_triplets-2*n);
 	const auto cotan = [](Scalar x) -> Scalar { return std::cos(x) / std::sin(x); };
+	const auto add_non_diag = [&IJV, &cIJV, &phi_map](int i, int j, Scalar s)->void {
+		IJV.emplace_back(i, j, s);
+		IJV.emplace_back(j, i, s);
+		Scalar rho_ij = phi_map[i][j] - phi_map[j][i] + M_PI;
+		Complex co = s * std::polar(1., rho_ij);
+		add_complex_triplet(cIJV, i, j, co);
+		add_complex_triplet(cIJV, j, i, std::conj(co));
+	};
 	for(int i = 0; i < n; ++i) {
 		Scalar L_ii = 0;
 		Scalar last = 0, first = 0;
@@ -174,20 +178,14 @@ bool igl::heat_vector_precompute(
 			int j = data.neighbors[i][e].first;
 			k = data.neighbors[i][(e+1) % data.neighbors[i].size()].first;
 			std::pair<int, int> &face = edge_to_face[i][j];
-			Scalar rho_ij = phi_map[i][j] - phi_map[j][i] + M_PI;
 			Scalar b = cotan(theta(face.first, (face.second+1)%3));
 			Scalar c = cotan(theta(face.first, (face.second+2)%3));
 			L_ii -= b + c;
 			if(e == 0 && !is_on_border) first = c;
-			else {
-				IJV.emplace_back(i, j, 0.5 * (last + c));
-				add_complex_triplet(cIJV, i, j, IJV.back().value() * std::polar(1., rho_ij));
-			}
+			else if(i < j) add_non_diag(i, j, 0.5*(last + c));
 			last = b;
 		}
-		Scalar rho_ik = phi_map[i][k] - phi_map[k][i] + M_PI;
-		IJV.emplace_back(i, k, 0.5*(first + last));
-		add_complex_triplet(cIJV, i, k, IJV.back().value() * std::polar(1., rho_ik));
+		if(i < k) add_non_diag(i, k, 0.5*(last + first));
 		IJV.emplace_back(i, i, 0.5*L_ii);
 		cIJV.emplace_back(2*i, 2*i, IJV.back().value());
 		cIJV.emplace_back(2*i+1, 2*i+1, IJV.back().value());
@@ -199,8 +197,8 @@ bool igl::heat_vector_precompute(
 	Eigen::SparseMatrix<Scalar> Q = M - t*L, cQ = cM - t*cL, _;
 	if(!igl::min_quad_with_fixed_precompute(Q, Eigen::VectorXi(), _, true, data.scal_Neumann))
 		return false;
-	// TODO: Understand why when pd is set to true there is an error
-	if(!igl::min_quad_with_fixed_precompute(cQ, Eigen::VectorXi(), _, true, data.vec_Neumann))
+	// TODO: Understand why there are two negative eigenvalues ...
+	if(!igl::min_quad_with_fixed_precompute(cQ, Eigen::VectorXi(), _, false, data.vec_Neumann))
 		return false;
 
 	return true;
@@ -230,8 +228,8 @@ void igl::heat_vector_solve(
 	VectorXS u0 = VectorXS::Zero(n), u, phi0 = VectorXS::Zero(n), phi;
 	for(int i = 0; i < Omega.size(); ++i) {
 		int x = Omega(i);
-		u0(x) = std::abs(X(i));
-		phi0(x) = 1.0;
+		u0(x) = -std::abs(X(i));
+		phi0(x) = -1.0;
 	}
 	igl::min_quad_with_fixed_solve(data.scal_Neumann, u0, VectorXS(), VectorXS(), u);
 	igl::min_quad_with_fixed_solve(data.scal_Neumann, phi0, VectorXS(), VectorXS(), phi);

@@ -2,8 +2,8 @@
 #include <igl/unproject_onto_mesh.h>
 #include <igl/avg_edge_length.h>
 #include <igl/opengl/glfw/Viewer.h>
-#include <igl/opengl/create_shader_program.h>
-#include <igl/opengl/destroy_shader_program.h>
+// #include <igl/opengl/create_shader_program.h>
+// #include <igl/opengl/destroy_shader_program.h>
 #include <GLFW/glfw3.h>
 
 #include "heat_vector.h"
@@ -38,6 +38,17 @@ int main(int argc, char *argv[]) {
 	viewer.data(mesh_id).set_colors(Eigen::RowVector3d(0.9, 0.3, 0.1));
 	viewer.data(mesh_id).show_lines = false;
 	viewer.launch_init(true, false, "vector heat method");
+
+	// const int nt = 8;
+	// Eigen::MatrixX3d Vec(V.rows(), 3);
+	// Eigen::Matrix<double, 1, 3> vec;
+	// for(int i = 0; i < nt; ++i) {
+	// 	for(int vert = 0; vert < V.rows(); ++vert) {
+	// 		igl::complex_to_vector(V, hvm_data, vert, std::polar(0.4*std::sqrt(t), (2*M_PI*i)/nt), vec);
+	// 		Vec.row(vert) = vec;
+	// 	}
+	// 	viewer.data().add_edges(V, V+Vec, Eigen::RowVector3d(0.8*i/nt, 0.5+0.33*i/nt, 1-i/nt));
+	// }
 
 	// Initial vector field
 	viewer.append_mesh();
@@ -126,8 +137,9 @@ int main(int argc, char *argv[]) {
 	std::cout << "Usage:\n"
 		"  [click]     Click on mesh then drag an release the button to add a new vector in X\n"
 		"  [BACKSPACE] When mouse button is pressed, remove vector at selected vertex\n"
+		"  [SPACE]     Compute the parallel transport\n"
 		"  -/+         Decrease/increase t by factor of 10.0\n"
-		"  D,d         Toggle using intrinsic Delaunay discrete differential operatorsé\n"
+		"  D,d         Toggle using intrinsic Delaunay discrete differential operators\n"
 		"\n";
 
 	viewer.callback_key_down = [&](igl::opengl::glfw::Viewer&, unsigned int key, int mod)->bool {
@@ -176,6 +188,20 @@ int main(int argc, char *argv[]) {
 		}
 		return true;
 	};
+
+	// std::ifstream f("../shader.vert");
+	// std::string mesh_vertex_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
+	// f.close();
+	// f.open("../cartoon.frag");
+	// std::string mesh_fragment_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
+	// f.close();
+	// viewer.data(mesh_id).meshgl.init();
+	// igl::opengl::destroy_shader_program(viewer.data(mesh_id).meshgl.shader_mesh);
+	// igl::opengl::create_shader_program(
+	// 	mesh_vertex_shader_string,
+	// 	mesh_fragment_shader_string,
+	// 	{},
+	// 	viewer.data(mesh_id).meshgl.shader_mesh);
 
 	viewer.launch_rendering(true);
 	viewer.launch_shut();
