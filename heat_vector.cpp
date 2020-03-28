@@ -155,6 +155,7 @@ bool igl::heat_vector_precompute(
 		num_triplets += data.neighbors[i].size();
 	}
 	M.setFromTriplets(IJV.begin(), IJV.end());
+	cM.setFromTriplets(cIJV.begin(), cIJV.end());
 
 	// Build connexion Laplacian
 	Eigen::SparseMatrix<Scalar> L(n, n), cL(2*n, 2*n);
@@ -199,7 +200,7 @@ bool igl::heat_vector_precompute(
 	if(!igl::min_quad_with_fixed_precompute(Q, Eigen::VectorXi(), _, true, data.scal_Neumann))
 		return false;
 	// TODO: Understand why when pd is set to true there is an error
-	if(!igl::min_quad_with_fixed_precompute(cQ, Eigen::VectorXi(), _, false, data.vec_Neumann))
+	if(!igl::min_quad_with_fixed_precompute(cQ, Eigen::VectorXi(), _, true, data.vec_Neumann))
 		return false;
 
 	return true;
@@ -221,8 +222,8 @@ void igl::heat_vector_solve(
 	VectorXS Y0 = VectorXS::Zero(2*n), Y;
 	for(int i = 0; i < Omega.size(); ++i) {
 		int x = 2*Omega(i);
-		Y0(x) = X(i).real();
-		Y0(x+1) = X(i).imag();
+		Y0(x) = -X(i).real();
+		Y0(x+1) = -X(i).imag();
 	}
 	igl::min_quad_with_fixed_solve(data.vec_Neumann, Y0, VectorXS(), VectorXS(), Y);
 
@@ -230,7 +231,7 @@ void igl::heat_vector_solve(
 	for(int i = 0; i < Omega.size(); ++i) {
 		int x = Omega(i);
 		u0(x) = std::abs(X(i));
-		phi0(x) = 1;
+		phi0(x) = 1.0;
 	}
 	igl::min_quad_with_fixed_solve(data.scal_Neumann, u0, VectorXS(), VectorXS(), u);
 	igl::min_quad_with_fixed_solve(data.scal_Neumann, phi0, VectorXS(), VectorXS(), phi);
