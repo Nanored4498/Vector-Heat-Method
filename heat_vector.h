@@ -1,7 +1,7 @@
 #ifndef HEAT_VECTOR_H
 #define HEAT_VECTOR_H
 
-#include <igl/heat_geodesics.h>
+#include <igl/min_quad_with_fixed.h>
 
 #include <vector>
 
@@ -9,11 +9,9 @@ namespace igl {
 
 template <typename Scalar>
 struct HeatVectorData {
-	HeatGeodesicsData<Scalar> scalar_data;
 	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> e0, e1;
 	std::vector<std::vector<std::pair<int, Scalar>>> neighbors;
-
-	bool& use_intrinsic_delaunay() { return scalar_data.use_intrinsic_delaunay; }
+	min_quad_with_fixed_data<Scalar> scal_Neumann, vec_Neumann;
 };
 
 template <typename DerivedV, typename Scalar>
@@ -62,12 +60,12 @@ bool heat_vector_precompute(
 //   X		#Omega list of vectors in the source Omega
 // Outputs:
 //   D		#V list of vectors transported from Omega
-template < typename Scalar, typename DerivedOmega, typename DerivedX>
+template <typename Scalar, typename DerivedOmega, typename DerivedX>
 void heat_vector_solve(
 	const HeatVectorData<Scalar> &data,
 	const Eigen::MatrixBase<DerivedOmega> &Omega,
 	const Eigen::MatrixBase<DerivedX> &X,
-	Eigen::PlainObjectBase<DerivedX> &D);
+	Eigen::PlainObjectBase<DerivedX> &res);
 
 }
 

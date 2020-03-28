@@ -21,7 +21,8 @@ int main(int argc, char *argv[]) {
 
 	// Precomputation for vector heat method [In build]
 	igl::HeatVectorData<double> hvm_data;
-	double t = std::pow(igl::avg_edge_length(V,F), 2);
+	double avg_l = igl::avg_edge_length(V,F);
+	double t = std::pow(avg_l, 2);
 	const auto precompute = [&]() {
 		if(!igl::heat_vector_precompute(V, F, t, hvm_data)) {
 			std::cerr << "Error: heat_vector_precompute failed." << std::endl;
@@ -41,11 +42,20 @@ int main(int argc, char *argv[]) {
 	// Initial vector field
 	viewer.append_mesh();
 	int X_id = viewer.data_list.back().id;
-	viewer.data(X_id).line_width = 1.6;
+	viewer.data(X_id).line_width = 3.6;
 	Eigen::RowVector3d X_color(0.3, 0.1, 0.9);
 	std::vector<std::complex<double>> X(V.rows(), 0);
 	std::vector<int> X_ind_in_data(V.rows(), -1);
-	std::vector<int> Omega;
+	Eigen::VectorXi Omega;
+
+	// Final field
+	Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1>  X_omega, barX;
+	Eigen::RowVector3d tmp_vec;
+	viewer.append_mesh();
+	int res_id = viewer.data_list.back().id;
+	viewer.data(res_id).line_width = 2.8;
+	Eigen::RowVector3d res_color(0.3, 0.9, 0.3);
+	Eigen::MatrixX3d res(V.rows(), 3);
 
 	// Some information on clicks
 	const auto get_vertex = [&]()->int {
@@ -96,13 +106,15 @@ int main(int argc, char *argv[]) {
 			Eigen::RowVector3d vec = pos - V.row(clicked_vertex);
 			igl::vector_to_complex(hvm_data, clicked_vertex, vec, X[clicked_vertex]);
 			igl::complex_to_vector(V, hvm_data, clicked_vertex, X[clicked_vertex], vec);
+			Eigen::RowVector3d v = V.row(clicked_vertex) + 0.05*avg_l*hvm_data.e0.row(clicked_vertex).cross(hvm_data.e1.row(clicked_vertex));
 			if(X_ind_in_data[clicked_vertex] < 0) {
 				X_ind_in_data[clicked_vertex] = viewer.data(X_id).lines.rows();
-				viewer.data(X_id).add_edges(V.row(clicked_vertex), V.row(clicked_vertex) + vec, X_color);
-				Omega.push_back(clicked_vertex);
+				viewer.data(X_id).add_edges(v, v + vec, X_color);
+				Omega.conservativeResize(Omega.size()+1);
+				Omega(Omega.size()-1) = clicked_vertex;
 			} else {
 				int ind = X_ind_in_data[clicked_vertex];
-				Eigen::RowVector3d dest = V.row(clicked_vertex) + vec;
+				Eigen::RowVector3d dest = v + vec;
 				for(int i = 0; i < 3; ++i) viewer.data(X_id).lines(ind, 3+i) = dest[i];
 				viewer.data(X_id).dirty |= igl::opengl::MeshGL::DIRTY_OVERLAY_LINES;
 			}
@@ -112,9 +124,10 @@ int main(int argc, char *argv[]) {
 	};
 
 	std::cout << "Usage:\n"
-		"  [click]  Click on mesh then drag an release the button to add a new vector in X\n"
-		"  -/+      Decrease/increase t by factor of 10.0\n"
-		"  D,d      Toggle using intrinsic Delaunay discrete differential operatorsé\n"
+		"  [click]     Click on mesh then drag an release the button to add a new vector in X\n"
+		"  [BACKSPACE] When mouse button is pressed, remove vector at selected vertex\n"
+		"  -/+         Decrease/increase t by factor of 10.0\n"
+		"  D,d         Toggle using intrinsic Delaunay discrete differential operatorsé\n"
 		"\n";
 
 	viewer.callback_key_down = [&](igl::opengl::glfw::Viewer&, unsigned int key, int mod)->bool {
@@ -122,10 +135,10 @@ int main(int argc, char *argv[]) {
 		case GLFW_KEY_BACKSPACE:
 			if(clicked_vertex >= 0) {
 				if(X_ind_in_data[clicked_vertex] >= 0) {
-					int ind = X_ind_in_data[clicked_vertex], last = Omega.back();
-					Omega[ind] = last;
+					int ind = X_ind_in_data[clicked_vertex], last = Omega(Omega.size()-1);
+					Omega(ind) = last;
 					X_ind_in_data[last] = ind;
-					Omega.pop_back();
+					Omega.conservativeResize(Omega.size()-1);
 					viewer.data(X_id).lines.row(ind) = viewer.data(X_id).lines.row(Omega.size());
 					viewer.data(X_id).lines.conservativeResize(Omega.size(), Eigen::NoChange);
 					viewer.data(X_id).dirty |= igl::opengl::MeshGL::DIRTY_OVERLAY_LINES;
@@ -134,16 +147,27 @@ int main(int argc, char *argv[]) {
 				clicked_vertex = -1;
 			}
 			break;
+		case GLFW_KEY_SPACE:
+			X_omega.resize(Omega.size(), 1);
+			for(int i = 0; i < Omega.size(); ++i) X_omega(i) = X[Omega(i)];
+			igl::heat_vector_solve(hvm_data, Omega, X_omega, barX);
+			for(int i = 0; i < V.rows(); ++i) {
+				igl::complex_to_vector(V, hvm_data, i, barX(i), tmp_vec);
+				res.row(i) = tmp_vec;
+			}
+			viewer.data(res_id).clear();
+			viewer.data(res_id).add_edges(V, V + res, res_color);
+			break;
 		case 'D':
 		case 'd':
-			hvm_data.use_intrinsic_delaunay() = !hvm_data.use_intrinsic_delaunay();
-			if(!hvm_data.use_intrinsic_delaunay()) std::cout << "not ";
-			std::cout << "using intrinsic delaunay..." << std::endl;
-			precompute();
+			// hvm_data.use_intrinsic_delaunay() = !hvm_data.use_intrinsic_delaunay();
+			// if(!hvm_data.use_intrinsic_delaunay()) std::cout << "not ";
+			// std::cout << "using intrinsic delaunay..." << std::endl;
+			// precompute();
 			break;
-		case '-':
-		case '+':
-			t *= (key=='+' ? 10.0 : 0.1);
+		case GLFW_KEY_KP_SUBTRACT:
+		case GLFW_KEY_KP_ADD:
+			t *= (key==GLFW_KEY_KP_ADD ? 10.0 : 0.1);
 			precompute();
 			std::cout << "t: " << t << std::endl;
 			break;
