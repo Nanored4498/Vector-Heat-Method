@@ -5,12 +5,7 @@ cmake_minimum_required(VERSION 3.1)
 set(CMAKE_BUILD_TYPE Release)
 set(BASE_CXX_FLAGS "-Wall -Wextra -Werror")
 
-add_subdirectory("/home/yoann/libigl" "/home/yoann/libigl/build")
-# set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-# option(LIBIGL_WITH_OPENGL            "Use OpenGL"         ON)
-# option(LIBIGL_WITH_OPENGL_GLFW       "Use GLFW"           ON)
-# option(LIBIGL_USE_STATIC_LIBRARY     "Use libIGL as static librarie" ON)
-# find_package(LIBIGL REQUIRED)
+add_subdirectory("/home/yoann/libigl" "/home/yoann/libigl/build" EXCLUDE_FROM_ALL)
 
 set(SRC
 	main.cpp
@@ -19,7 +14,5 @@ set(SRC
 
 add_executable(${PROJECT_NAME} ${SRC})
 target_link_libraries(${PROJECT_NAME}
-	igl::core
-	igl::opengl
-	igl::opengl_glfw 
+	igl::opengl_glfw
 )

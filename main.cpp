@@ -67,6 +67,7 @@ int main(int argc, char *argv[]) {
 	viewer.data(res_id).line_width = 2.8;
 	Eigen::RowVector3d res_color(0.3, 0.9, 0.3);
 	Eigen::MatrixX3d res(V.rows(), 3);
+	std::ofstream writer;
 
 	// Some information on clicks
 	const auto get_vertex = [&]()->int {
@@ -163,10 +164,13 @@ int main(int argc, char *argv[]) {
 			X_omega.resize(Omega.size(), 1);
 			for(int i = 0; i < Omega.size(); ++i) X_omega(i) = X[Omega(i)];
 			igl::heat_vector_solve(hvm_data, Omega, X_omega, barX);
+			writer.open("../field.obj");
 			for(int i = 0; i < V.rows(); ++i) {
 				igl::complex_to_vector(V, hvm_data, i, barX(i), tmp_vec);
+				writer << "v " << tmp_vec(0) << " " << tmp_vec(1) << " " << tmp_vec(2) << "\n";
 				res.row(i) = tmp_vec;
 			}
+			writer.close();
 			viewer.data(res_id).clear();
 			viewer.data(res_id).add_edges(V, V + res, res_color);
 			break;
