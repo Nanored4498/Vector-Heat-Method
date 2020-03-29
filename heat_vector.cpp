@@ -72,7 +72,6 @@ bool igl::heat_vector_precompute(
 	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> VectorXS;
 	typedef std::complex<Scalar> Complex;
 
-	assert(F.cols() == 3 && "Only triangles are supported");
 	int n = V.rows(), m = F0.rows(), d = V.cols();
 
 	// Squared edge length
@@ -81,7 +80,7 @@ bool igl::heat_vector_precompute(
 
 	// Face corner angles and face areas
 	MatrixX3S theta(m, 3);
-	VectorXS sumTheta = VectorXS::Zero(n);
+	VectorXS sumTheta = VectorXS(n);
 	VectorXS faceArea(m);
 	std::vector<std::map<int, std::pair<int, int>>> edge_to_face(n);
 	const auto compute_theta = [&](const DerivedF &F)->void {
