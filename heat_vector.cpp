@@ -61,15 +61,6 @@ bool igl::heat_vector_precompute(
 
 }
 
-template <typename T>
-void add_complex_triplet(std::vector<Eigen::Triplet<T>> &IJV, int i, int j, const std::complex<T> &c) {
-	int i2 = i<<1, j2 = j<<1;
-	IJV.emplace_back(i2, j2, c.real());
-	IJV.emplace_back(i2, j2+1, -c.imag());
-	IJV.emplace_back(i2+1, j2, c.imag());
-	IJV.emplace_back(i2+1, j2+1, c.real());
-}
-
 template <typename DerivedV, typename DerivedF, typename Scalar>
 bool igl::heat_vector_precompute(
 	const Eigen::MatrixBase<DerivedV> &V,
@@ -120,10 +111,8 @@ bool igl::heat_vector_precompute(
 	data.neighbors.clear();
 	data.neighbors.resize(n);
 	std::vector<std::map<int, Scalar>> phi_map(n);
-	Eigen::SparseMatrix<Scalar> M(n, n), cM(2*n, 2*n);
-	std::vector<Eigen::Triplet<Scalar>> IJV, cIJV;
+	std::vector<Eigen::Triplet<Scalar>> IJV;
 	IJV.reserve(n);
-	cIJV.reserve(2*n);
 	int num_triplets = n;
 	for(int i = 0; i < n; ++i) {
 		assert(!edge_to_face[i].empty() && "Vertices need to appear in at least one face !");
@@ -137,8 +126,6 @@ bool igl::heat_vector_precompute(
 		}
 		// Mass matrix coeff
 		IJV.emplace_back(i, i, M_i/3);
-		cIJV.emplace_back(2*i, 2*i, IJV.back().value());
-		cIJV.emplace_back(2*i+1, 2*i+1, IJV.back().value());
 		// Tangent plane basis
 		data.e1.row(i).normalize();
 		data.e0.row(i) = V.row(j0) - V.row(i);
@@ -159,23 +146,21 @@ bool igl::heat_vector_precompute(
 		} while(j != j0);
 		num_triplets += data.neighbors[i].size();
 	}
+	Eigen::SparseMatrix<Scalar> M(n, n);
 	M.setFromTriplets(IJV.begin(), IJV.end());
-	cM.setFromTriplets(cIJV.begin(), cIJV.end());
+	Eigen::SparseMatrix<Complex> cM(n, n);
+	cM.setFromTriplets(IJV.begin(), IJV.end());
 
 	// Build connexion Laplacian
-	Eigen::SparseMatrix<Scalar> L(n, n), cL(2*n, 2*n);
 	IJV.clear();
 	IJV.reserve(num_triplets);
-	cIJV.clear();
-	cIJV.reserve(4*num_triplets-2*n);
+	std::vector<Eigen::Triplet<Complex>> cIJV;
+	cIJV.reserve(num_triplets);
 	const auto cotan = [](Scalar x) -> Scalar { return std::cos(x) / std::sin(x); };
 	const auto add_non_diag = [&IJV, &cIJV, &phi_map](int i, int j, Scalar s)->void {
 		IJV.emplace_back(i, j, s);
-		IJV.emplace_back(j, i, s);
 		Scalar rho_ij = phi_map[i][j] - phi_map[j][i] + M_PI;
-		Complex co = s * std::polar(1., rho_ij);
-		add_complex_triplet(cIJV, i, j, co);
-		add_complex_triplet(cIJV, j, i, std::conj(co));
+		cIJV.emplace_back(i, j, s * std::polar(1., rho_ij));
 	};
 	for(int i = 0; i < n; ++i) {
 		Scalar L_ii = 0;
@@ -191,15 +176,16 @@ bool igl::heat_vector_precompute(
 			Scalar c = cotan(theta(face.first, (face.second+2)%3));
 			L_ii -= b + c;
 			if(e == 0 && !is_on_border) first = c;
-			else if(i < j) add_non_diag(i, j, 0.5*(last + c));
+			else add_non_diag(i, j, 0.5*(last + c));
 			last = b;
 		}
-		if(i < k) add_non_diag(i, k, 0.5*(last + first));
+		add_non_diag(i, k, 0.5*(last + first));
 		IJV.emplace_back(i, i, 0.5*L_ii);
-		cIJV.emplace_back(2*i, 2*i, IJV.back().value());
-		cIJV.emplace_back(2*i+1, 2*i+1, IJV.back().value());
+		cIJV.emplace_back(i, i, IJV.back().value());
 	}
+	Eigen::SparseMatrix<Scalar> L(n, n);
 	L.setFromTriplets(IJV.begin(), IJV.end());
+	Eigen::SparseMatrix<Complex> cL(n, n);
 	cL.setFromTriplets(cIJV.begin(), cIJV.end());
 
 	// Solvers
@@ -221,16 +207,14 @@ void igl::heat_vector_solve(
 	Eigen::PlainObjectBase<DerivedX> &res) {
 
 	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> VectorXS;
+	typedef Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> VectorXC;
 
 	int n = data.neighbors.size();
 
-	VectorXS Y0 = VectorXS::Zero(2*n);
-	for(int i = 0; i < Omega.size(); ++i) {
-		int x = 2*Omega(i);
-		Y0(x) = X(i).real();
-		Y0(x+1) = X(i).imag();
-	}
-	VectorXS Y = data.vec_solver.solve(Y0);
+	VectorXC Y0 = VectorXC::Zero(n);
+	for(int i = 0; i < Omega.size(); ++i)
+		Y0(Omega(i)) = X(i);
+	res = data.vec_solver.solve(Y0);
 
 	VectorXS u0 = VectorXS::Zero(n), phi0 = VectorXS::Zero(n);
 	for(int i = 0; i < Omega.size(); ++i) {
@@ -241,12 +225,8 @@ void igl::heat_vector_solve(
 	VectorXS u = data.scal_solver.solve(u0);
 	VectorXS phi = data.scal_solver.solve(phi0);
 
-	res.resize(n, 1);
-	for(int i = 0; i < n; ++i) {
-		res(i) = std::complex<Scalar>(Y(2*i), Y(2*i+1));
-		res(i) /= std::abs(res(i));
-		res(i) *= u(i) / phi(i);
-	}
+	for(int i = 0; i < n; ++i)
+		res(i) *= u(i) / phi(i) / std::abs(res(i));
 
 }
 

@@ -10,7 +10,8 @@ template <typename Scalar>
 struct HeatVectorData {
 	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> e0, e1;
 	std::vector<std::vector<std::pair<int, Scalar>>> neighbors;
-	Eigen::SimplicialLDLT<Eigen::SparseMatrix<Scalar>> scal_solver, vec_solver;
+	Eigen::SimplicialLDLT<Eigen::SparseMatrix<Scalar>> scal_solver;
+	Eigen::SimplicialLDLT<Eigen::SparseMatrix<std::complex<Scalar>>> vec_solver;
     bool use_intrinsic_delaunay = false;
 };
 
