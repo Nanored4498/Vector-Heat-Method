@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
 			Eigen::RowVector3d vec = pos - V.row(clicked_vertex);
 			igl::vector_to_complex(hvm_data, clicked_vertex, vec, X[clicked_vertex]);
 			igl::complex_to_vector(V, hvm_data, clicked_vertex, X[clicked_vertex], vec);
-			Eigen::RowVector3d v = V.row(clicked_vertex) + 0.05*avg_l*hvm_data.e0.row(clicked_vertex).cross(hvm_data.e1.row(clicked_vertex));
+			Eigen::RowVector3d v = V.row(clicked_vertex) + 0.03*avg_l*hvm_data.e0.row(clicked_vertex).cross(hvm_data.e1.row(clicked_vertex));
 			if(X_ind_in_data[clicked_vertex] < 0) {
 				X_ind_in_data[clicked_vertex] = viewer.data(X_id).lines.rows();
 				viewer.data(X_id).add_edges(v, v + vec, X_color);

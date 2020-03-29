@@ -77,44 +77,54 @@ bool igl::heat_vector_precompute(
 
 	// Squared edge length
 	MatrixX3S l2;
-	DerivedF F_intrinsic;
-	if(data.use_intrinsic_delaunay) {
-		MatrixX3S l;
-		igl::edge_lengths(V, F0, l);
-		igl::intrinsic_delaunay_triangulation(l, F0, l2, F_intrinsic);
-		l2 = l2.array().square().eval();
-	} else igl::squared_edge_lengths(V, F0, l2);
-	const DerivedF &F = data.use_intrinsic_delaunay ? F_intrinsic : F0;
+	igl::squared_edge_lengths(V, F0, l2);
 
 	// Face corner angles and face areas
 	MatrixX3S theta(m, 3);
 	VectorXS sumTheta = VectorXS::Zero(n);
 	VectorXS faceArea(m);
 	std::vector<std::map<int, std::pair<int, int>>> edge_to_face(n);
-	for(int i = 0; i < m; ++i) {
-		Scalar dblA = std::sqrt(l2(i, 1) * l2(i, 2));
-		theta(i, 0) = std::acos(.5 * (l2(i, 1) + l2(i, 2) - l2(i, 0)) / dblA);
-		theta(i, 1) = std::acos(.5 * (l2(i, 0) + l2(i, 2) - l2(i, 1)) / std::sqrt(l2(i, 0) * l2(i, 2)));
-		theta(i, 2) = M_PI - theta(i, 0) - theta(i, 1);
-		faceArea(i) = 0.5 * std::sin(theta(i, 0)) * dblA;
-		for(int j = 0; j < 3; ++j) {
-			sumTheta(F(i, j)) += theta(i, j);
-			edge_to_face[F(i, j)][F(i, (j+1)%3)] = {i, j};
+	const auto compute_theta = [&](const DerivedF &F)->void {
+		for(int i = 0; i < n; ++i)
+			edge_to_face[i].clear(), sumTheta(i) = 0;
+		for(int i = 0; i < m; ++i) {
+			Scalar dblA = std::sqrt(l2(i, 1) * l2(i, 2));
+			theta(i, 0) = std::acos(.5 * (l2(i, 1) + l2(i, 2) - l2(i, 0)) / dblA);
+			theta(i, 1) = std::acos(.5 * (l2(i, 0) + l2(i, 2) - l2(i, 1)) / std::sqrt(l2(i, 0) * l2(i, 2)));
+			theta(i, 2) = M_PI - theta(i, 0) - theta(i, 1);
+			faceArea(i) = 0.5 * std::sin(theta(i, 0)) * dblA;
+			for(int j = 0; j < 3; ++j) {
+				sumTheta(F(i, j)) += theta(i, j);
+				edge_to_face[F(i, j)][F(i, (j+1)%3)] = {i, j};
+			}
 		}
-	}
+	};
+	compute_theta(F0);
 
-	// Neighborhoods, vertex tangent plance basis, mass matrix and phi
-	MatrixX3S face_normals(m, 3);
-	igl::per_face_normals(V, F, face_normals);
-	data.e0.resize(n, 3);
-	data.e1 = MatrixX3S::Zero(n, 3);
+	// Compute phi for the vertex i starting at the neighbor j0
+	const auto compute_phi = [&](int i, int j0, Scalar phi, const DerivedF &F, const std::function<void(int, Scalar)> &fun)->void {
+		Scalar factor = 2 * M_PI / sumTheta(i);
+		int j = j0;
+		do {
+			fun(j, phi);
+			if(!edge_to_face[i].count(j)) break;
+			std::pair<int, int> &face = edge_to_face[i][j];
+			phi += theta(face.first, face.second) * factor;
+			j = F(face.first, (face.second+2)%3);
+		} while(j != j0);
+	};
+
+	// Neighborhoods and vertex tangent plance basis
 	data.neighbors.clear();
 	data.neighbors.resize(n);
-	std::vector<std::map<int, Scalar>> phi_map(n);
-	int num_triplets = n;
+	MatrixX3S face_normals(m, 3);
+	igl::per_face_normals(V, F0, face_normals);
+	data.e0.resize(n, 3);
+	data.e1 = MatrixX3S::Zero(n, 3);
 	for(int i = 0; i < n; ++i) {
+		// First neighbor
 		int j0 = (*edge_to_face[i].lower_bound(0)).first;
-		for(std::pair<int, std::pair<int, int>> j : edge_to_face[i]) {
+		for(const std::pair<int, std::pair<int, int>> &j : edge_to_face[i]) {
 			if(!edge_to_face[j.first].count(i)) j0 = j.first;
 			data.e1.row(i) += face_normals.row(j.second.first);
 		}
@@ -124,20 +134,39 @@ bool igl::heat_vector_precompute(
 		data.e0.row(i) -= data.e1.row(i).dot(data.e0.row(i)) * data.e1.row(i);
 		data.e0.row(i).normalize();
 		data.e1.row(i) = data.e1.row(i).cross(data.e0.row(i));
-		// Phi
-		Scalar phi = 0;
-		Scalar factor = 2 * M_PI / sumTheta(i);
-		int j = j0;
-		do {
-			data.neighbors[i].emplace_back(j, phi);
-			phi_map[i][j] = phi;
-			if(!edge_to_face[i].count(j)) break;
-			std::pair<int, int> &face = edge_to_face[i][j];
-			phi += theta(face.first, face.second) * factor;
-			j = F(face.first, (face.second+2)%3);
-		} while(j != j0);
-		num_triplets += data.neighbors[i].size();
+		// Neighborhood
+		compute_phi(i, j0, 0, F0, [i, &data](int j, Scalar phi) { data.neighbors[i].emplace_back(j, phi); });
 	}
+
+	// Phi
+	std::vector<std::map<int, Scalar>> phi_map(n);
+	DerivedF F_intrinsic;
+	if(data.use_intrinsic_delaunay) {
+		MatrixX3S l = l2.array().sqrt().eval();
+		igl::intrinsic_delaunay_triangulation(l, F0, l2, F_intrinsic);
+		l2 = l2.array().square().eval();
+		compute_theta(F_intrinsic);
+		for(int i = 0; i < n; ++i) {
+			int j0 = data.neighbors[i][0].first;
+			Scalar phi = 0;
+			if(!edge_to_face[i].count(j0)) {
+				j0 = (*edge_to_face[i].lower_bound(0)).first;
+				Complex c;
+				Eigen::Matrix<Scalar, 1, 3> vec = V.row(j0)-V.row(i);
+				igl::vector_to_complex(data, i, vec, c);
+				phi = std::arg(c);
+			}
+			compute_phi(i, j0, phi, F_intrinsic,
+					[i, &phi_map](int j, Scalar phi) { phi_map[i][j] = phi; });
+		}
+	} else {
+		for(int i = 0; i < n; ++i)
+			for(const std::pair<int, Scalar> &j : data.neighbors[i])
+				phi_map[i][j.first] = j.second;
+	}
+	int num_triplets = n;
+	for(int i = 0; i < n; ++i) num_triplets += phi_map[i].size();
+	const DerivedF &F = data.use_intrinsic_delaunay ? F_intrinsic : F0;
 
 	// Build connexion Laplacian
 	std::vector<Eigen::Triplet<Scalar>> IJV;
@@ -154,6 +183,7 @@ bool igl::heat_vector_precompute(
 		Scalar M_i = 0, L_i = 0;
 		Scalar last = 0, first = 0;
 		int j0 = data.neighbors[i][0].first;
+		if(!edge_to_face[i].count(j0)) j0 = (*edge_to_face[i].lower_bound(0)).first;
 		int j=j0, k;
 		if(!edge_to_face[j0].count(i)) j0 = data.neighbors[i].back().first;
 		do {
