@@ -111,21 +111,13 @@ bool igl::heat_vector_precompute(
 	data.neighbors.clear();
 	data.neighbors.resize(n);
 	std::vector<std::map<int, Scalar>> phi_map(n);
-	std::vector<Eigen::Triplet<Scalar>> IJV;
-	IJV.reserve(n);
 	int num_triplets = n;
 	for(int i = 0; i < n; ++i) {
-		assert(!edge_to_face[i].empty() && "Vertices need to appear in at least one face !");
-		Scalar M_i = 0;
 		int j0 = (*edge_to_face[i].lower_bound(0)).first;
 		for(std::pair<int, std::pair<int, int>> j : edge_to_face[i]) {
-			if(!edge_to_face[j.first].count(i))
-				j0 = j.first;
-			M_i += faceArea[j.second.first];
+			if(!edge_to_face[j.first].count(i)) j0 = j.first;
 			data.e1.row(i) += face_normals.row(j.second.first);
 		}
-		// Mass matrix coeff
-		IJV.emplace_back(i, i, M_i/3);
 		// Tangent plane basis
 		data.e1.row(i).normalize();
 		data.e0.row(i) = V.row(j0) - V.row(i);
@@ -146,13 +138,9 @@ bool igl::heat_vector_precompute(
 		} while(j != j0);
 		num_triplets += data.neighbors[i].size();
 	}
-	Eigen::SparseMatrix<Scalar> M(n, n);
-	M.setFromTriplets(IJV.begin(), IJV.end());
-	Eigen::SparseMatrix<Complex> cM(n, n);
-	cM.setFromTriplets(IJV.begin(), IJV.end());
 
 	// Build connexion Laplacian
-	IJV.clear();
+	std::vector<Eigen::Triplet<Scalar>> IJV;
 	IJV.reserve(num_triplets);
 	std::vector<Eigen::Triplet<Complex>> cIJV;
 	cIJV.reserve(num_triplets);
@@ -163,35 +151,36 @@ bool igl::heat_vector_precompute(
 		cIJV.emplace_back(i, j, s * std::polar(1., rho_ij));
 	};
 	for(int i = 0; i < n; ++i) {
-		Scalar L_ii = 0;
+		Scalar M_i = 0, L_i = 0;
 		Scalar last = 0, first = 0;
-		int ne = data.neighbors[i].size(), k;
-		bool is_on_border = !edge_to_face[data.neighbors[i][0].first].count(i);
-		if(is_on_border) --ne;
-		for(int e = 0; e < ne; ++e) {
-			int j = data.neighbors[i][e].first;
-			k = data.neighbors[i][(e+1) % data.neighbors[i].size()].first;
+		int j0 = data.neighbors[i][0].first;
+		int j=j0, k;
+		if(!edge_to_face[j0].count(i)) j0 = data.neighbors[i].back().first;
+		do {
 			std::pair<int, int> &face = edge_to_face[i][j];
+			k = F(face.first, (face.second+2)%3);
 			Scalar b = cotan(theta(face.first, (face.second+1)%3));
 			Scalar c = cotan(theta(face.first, (face.second+2)%3));
-			L_ii -= b + c;
-			if(e == 0 && !is_on_border) first = c;
-			else add_non_diag(i, j, 0.5*(last + c));
+			M_i += faceArea(face.first);
+			L_i += b + c;
+			if(j == j0) first = c;
+			else add_non_diag(i, j, -t*0.5*(last + c));
 			last = b;
-		}
-		add_non_diag(i, k, 0.5*(last + first));
-		IJV.emplace_back(i, i, 0.5*L_ii);
+			j = k;
+		} while(j != j0);
+		add_non_diag(i, k, -t*0.5*(last + first));
+		IJV.emplace_back(i, i, M_i/3 + t*0.5*L_i);
 		cIJV.emplace_back(i, i, IJV.back().value());
 	}
-	Eigen::SparseMatrix<Scalar> L(n, n);
-	L.setFromTriplets(IJV.begin(), IJV.end());
-	Eigen::SparseMatrix<Complex> cL(n, n);
-	cL.setFromTriplets(cIJV.begin(), cIJV.end());
+	Eigen::SparseMatrix<Scalar> Q(n, n);
+	Q.setFromTriplets(IJV.begin(), IJV.end());
+	Eigen::SparseMatrix<Complex> cQ(n, n);
+	cQ.setFromTriplets(cIJV.begin(), cIJV.end());
 
 	// Solvers
-	data.scal_solver.compute(M - t*L);
+	data.scal_solver.compute(Q);
 	if(data.scal_solver.info() != Eigen::Success) return false;
-	data.vec_solver.compute(cM - t*cL);
+	data.vec_solver.compute(cQ);
 	if(data.vec_solver.info() != Eigen::Success) return false;
 
 	return true;
