@@ -1,8 +1,7 @@
 #ifndef HEAT_VECTOR_H
 #define HEAT_VECTOR_H
 
-#include <igl/min_quad_with_fixed.h>
-
+#include <Eigen/SparseCholesky>
 #include <vector>
 
 namespace igl {
@@ -11,7 +10,8 @@ template <typename Scalar>
 struct HeatVectorData {
 	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> e0, e1;
 	std::vector<std::vector<std::pair<int, Scalar>>> neighbors;
-	min_quad_with_fixed_data<Scalar> scal_Neumann, vec_Neumann;
+	Eigen::SimplicialLDLT<Eigen::SparseMatrix<Scalar>> scal_solver, vec_solver;
+    bool use_intrinsic_delaunay = false;
 };
 
 template <typename DerivedV, typename Scalar>

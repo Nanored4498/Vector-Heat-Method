@@ -176,10 +176,10 @@ int main(int argc, char *argv[]) {
 			break;
 		case 'D':
 		case 'd':
-			// hvm_data.use_intrinsic_delaunay() = !hvm_data.use_intrinsic_delaunay();
-			// if(!hvm_data.use_intrinsic_delaunay()) std::cout << "not ";
-			// std::cout << "using intrinsic delaunay..." << std::endl;
-			// precompute();
+			hvm_data.use_intrinsic_delaunay = !hvm_data.use_intrinsic_delaunay;
+			if(!hvm_data.use_intrinsic_delaunay) std::cout << "not ";
+			std::cout << "using intrinsic delaunay..." << std::endl;
+			precompute();
 			break;
 		case GLFW_KEY_KP_SUBTRACT:
 		case GLFW_KEY_KP_ADD:

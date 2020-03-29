@@ -1,7 +1,9 @@
 #include "heat_vector.h"
 
 #include <igl/avg_edge_length.h>
+#include <igl/edge_lengths.h>
 #include <igl/squared_edge_lengths.h>
+#include <igl/intrinsic_delaunay_triangulation.h>
 #include <igl/per_face_normals.h>
 
 #include <map>
@@ -71,7 +73,7 @@ void add_complex_triplet(std::vector<Eigen::Triplet<T>> &IJV, int i, int j, cons
 template <typename DerivedV, typename DerivedF, typename Scalar>
 bool igl::heat_vector_precompute(
 	const Eigen::MatrixBase<DerivedV> &V,
-	const Eigen::MatrixBase<DerivedF> &F,
+	const Eigen::MatrixBase<DerivedF> &F0,
 	const Scalar t,
 	HeatVectorData<Scalar> &data) {
 		
@@ -80,11 +82,18 @@ bool igl::heat_vector_precompute(
 	typedef std::complex<Scalar> Complex;
 
 	assert(F.cols() == 3 && "Only triangles are supported");
-	int n = V.rows(), m = F.rows(), d = V.cols();
+	int n = V.rows(), m = F0.rows(), d = V.cols();
 
 	// Squared edge length
 	MatrixX3S l2;
-	igl::squared_edge_lengths(V, F, l2);
+	DerivedF F_intrinsic;
+	if(data.use_intrinsic_delaunay) {
+		MatrixX3S l;
+		igl::edge_lengths(V, F0, l);
+		igl::intrinsic_delaunay_triangulation(l, F0, l2, F_intrinsic);
+		l2 = l2.array().square().eval();
+	} else igl::squared_edge_lengths(V, F0, l2);
+	const DerivedF &F = data.use_intrinsic_delaunay ? F_intrinsic : F0;
 
 	// Face corner angles and face areas
 	MatrixX3S theta(m, 3);
@@ -194,12 +203,10 @@ bool igl::heat_vector_precompute(
 	cL.setFromTriplets(cIJV.begin(), cIJV.end());
 
 	// Solvers
-	Eigen::SparseMatrix<Scalar> Q = M - t*L, cQ = cM - t*cL, _;
-	if(!igl::min_quad_with_fixed_precompute(Q, Eigen::VectorXi(), _, true, data.scal_Neumann))
-		return false;
-	// TODO: Understand why there are two negative eigenvalues ...
-	if(!igl::min_quad_with_fixed_precompute(cQ, Eigen::VectorXi(), _, false, data.vec_Neumann))
-		return false;
+	data.scal_solver.compute(M - t*L);
+	if(data.scal_solver.info() != Eigen::Success) return false;
+	data.vec_solver.compute(cM - t*cL);
+	if(data.vec_solver.info() != Eigen::Success) return false;
 
 	return true;
 
@@ -217,22 +224,22 @@ void igl::heat_vector_solve(
 
 	int n = data.neighbors.size();
 
-	VectorXS Y0 = VectorXS::Zero(2*n), Y;
+	VectorXS Y0 = VectorXS::Zero(2*n);
 	for(int i = 0; i < Omega.size(); ++i) {
 		int x = 2*Omega(i);
-		Y0(x) = -X(i).real();
-		Y0(x+1) = -X(i).imag();
+		Y0(x) = X(i).real();
+		Y0(x+1) = X(i).imag();
 	}
-	igl::min_quad_with_fixed_solve(data.vec_Neumann, Y0, VectorXS(), VectorXS(), Y);
+	VectorXS Y = data.vec_solver.solve(Y0);
 
-	VectorXS u0 = VectorXS::Zero(n), u, phi0 = VectorXS::Zero(n), phi;
+	VectorXS u0 = VectorXS::Zero(n), phi0 = VectorXS::Zero(n);
 	for(int i = 0; i < Omega.size(); ++i) {
 		int x = Omega(i);
-		u0(x) = -std::abs(X(i));
-		phi0(x) = -1.0;
+		u0(x) = std::abs(X(i));
+		phi0(x) = 1.0;
 	}
-	igl::min_quad_with_fixed_solve(data.scal_Neumann, u0, VectorXS(), VectorXS(), u);
-	igl::min_quad_with_fixed_solve(data.scal_Neumann, phi0, VectorXS(), VectorXS(), phi);
+	VectorXS u = data.scal_solver.solve(u0);
+	VectorXS phi = data.scal_solver.solve(phi0);
 
 	res.resize(n, 1);
 	for(int i = 0; i < n; ++i) {
