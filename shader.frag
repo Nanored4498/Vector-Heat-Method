@@ -21,7 +21,7 @@ void main() {
 		return;
 	}
 
-	float ni = 50.0; // number of intervals
+	float ni = 45.0; // number of intervals
 	float t = round(ni*Kdi.r)/ni; // quantize
 	vec3 Kdiq = clamp(vec3(1.15-t*(1.1-0.3*t),1-1.7*t,max(0.85-6*t,3.5*t-3.35)),0,1); // heat map
 

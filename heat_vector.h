@@ -13,6 +13,7 @@ struct HeatVectorData {
 	Eigen::SimplicialLDLT<Eigen::SparseMatrix<Scalar>> scal_solver;
 	Eigen::SimplicialLDLT<Eigen::SparseMatrix<std::complex<Scalar>>> vec_solver;
     bool use_intrinsic_delaunay = false;
+	std::vector<std::vector<std::pair<int, std::complex<Scalar>>>> x_log;
 };
 
 template <typename DerivedV, typename Scalar>
@@ -42,6 +43,7 @@ template <typename DerivedV, typename DerivedF, typename Scalar>
 bool heat_vector_precompute(
 	const Eigen::MatrixBase<DerivedV> &V,
 	const Eigen::MatrixBase<DerivedF> &F,
+	bool precompute_log,
 	HeatVectorData<Scalar> &data);
 // Inputs:
 //   t  "heat" parameter (smaller --> more accurate, less stable)
@@ -49,6 +51,7 @@ template <typename DerivedV, typename DerivedF, typename Scalar>
 bool heat_vector_precompute(
 	const Eigen::MatrixBase<DerivedV> &V,
 	const Eigen::MatrixBase<DerivedF> &F,
+	bool precompute_log,
 	const Scalar t,
 	HeatVectorData<Scalar> &data);
 
@@ -67,6 +70,18 @@ void heat_vector_solve(
 	const Eigen::MatrixBase<DerivedOmega> &Omega,
 	const Eigen::MatrixBase<DerivedX> &X,
 	Eigen::PlainObjectBase<DerivedX> &res);
+
+template <typename Scalar, typename DerivedOmega>
+void heat_voronoi_solve(
+	const HeatVectorData<Scalar> &data,
+	const Eigen::MatrixBase<DerivedOmega> &Omega,
+	Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &res);
+
+template <typename Scalar>
+void heat_log_solve(
+	const HeatVectorData<Scalar> &data,
+	int vertex,
+	Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> &res);
 
 }
 

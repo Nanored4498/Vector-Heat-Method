@@ -52,12 +52,13 @@ template <typename DerivedV, typename DerivedF, typename Scalar>
 bool igl::heat_vector_precompute(
 	const Eigen::MatrixBase<DerivedV> &V,
 	const Eigen::MatrixBase<DerivedF> &F,
+	bool precompute_log,
 	HeatVectorData<Scalar> &data) {
 
   // default t value
   const Scalar h = avg_edge_length(V,F);
   const Scalar t = h*h;
-  return heat_vector_precompute(V,F,t,data);
+  return heat_vector_precompute(V,F,precompute_log,t,data);
 
 }
 
@@ -65,6 +66,7 @@ template <typename DerivedV, typename DerivedF, typename Scalar>
 bool igl::heat_vector_precompute(
 	const Eigen::MatrixBase<DerivedV> &V,
 	const Eigen::MatrixBase<DerivedF> &F0,
+	bool precompute_log,
 	const Scalar t,
 	HeatVectorData<Scalar> &data) {
 		
@@ -212,6 +214,39 @@ bool igl::heat_vector_precompute(
 	data.vec_solver.compute(cQ);
 	if(data.vec_solver.info() != Eigen::Success) return false;
 
+	if(!precompute_log) return true;
+
+	data.x_log.clear();
+	data.x_log.resize(n);
+	l2 = l2.array().sqrt().eval();
+	for(int i = 0; i < n; ++i) {
+		Complex x_i = 0;
+		Complex last=0, first=0;
+		Scalar theta_factor = 2 * M_PI / sumTheta(i);
+		int j0 = data.neighbors[i][0].first;
+		if(!edge_to_face[i].count(j0)) j0 = (*edge_to_face[i].lower_bound(0)).first;
+		int j=j0, k;
+		if(!edge_to_face[j0].count(i)) j0 = data.neighbors[i].back().first;
+		do {
+			std::pair<int, int> &face = edge_to_face[i][j];
+			k = F(face.first, (face.second+2)%3);
+			Scalar l_ik = l2(face.first, (face.second+1)%3);
+			Scalar l_ij = l2(face.first, (face.second+2)%3);
+			Scalar A = 4 * faceArea(face.first);
+			Scalar alpha = theta(face.first, face.second) * theta_factor;
+			Scalar sin_alpha = std::sin(alpha), cos_alpha = std::cos(alpha);
+			Complex c = Complex(alpha*sin_alpha, sin_alpha - alpha*cos_alpha) / A;
+			Complex add_i(-sin_alpha*(l_ik*alpha+l_ij*sin_alpha), l_ij*(cos_alpha*sin_alpha-alpha) + l_ik*(alpha*cos_alpha - sin_alpha));
+			x_i += std::polar(1., phi_map[i][j]) * add_i / A;
+			if(j == j0) first = l_ik*c;
+			else data.x_log[i].emplace_back(j, - std::polar(1., phi_map[j][i]) * (last+l_ik*c));
+			last = l_ij * std::conj(c);
+			j = k;
+		} while(j != j0);
+		data.x_log[i].emplace_back(k, - std::polar(1., phi_map[k][i]) * (last+first));
+		data.x_log[i].emplace_back(i, x_i);
+	}
+
 	return true;
 
 }
@@ -248,6 +283,59 @@ void igl::heat_vector_solve(
 
 }
 
+template <typename Scalar, typename DerivedOmega>
+void igl::heat_voronoi_solve(
+	const HeatVectorData<Scalar> &data,
+	const Eigen::MatrixBase<DerivedOmega> &Omega,
+	Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &res) {
+
+	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> VectorXS;
+
+	int n = data.neighbors.size();
+
+	VectorXS u0 = VectorXS::Zero(n), phi0 = VectorXS::Zero(n);
+	for(int i = 0; i < Omega.size(); ++i) {
+		int x = Omega(i);
+		u0(x) = i;
+		phi0(x) = 1.0;
+	}
+	VectorXS u = data.scal_solver.solve(u0);
+	VectorXS phi = data.scal_solver.solve(phi0);
+	for(int i = 0; i < n; ++i)
+		res(i) = u(i) / phi(i);
+
+}
+
+template <typename Scalar>
+void igl::heat_log_solve(
+	const HeatVectorData<Scalar> &data,
+	int vertex,
+	Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> &res) {
+
+	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> VectorXS;
+	typedef std::complex<Scalar> Complex;
+	typedef Eigen::Matrix<Complex, Eigen::Dynamic, 1> VectorXC;
+
+	int n = data.neighbors.size();
+
+	VectorXC H, x = VectorXC::Zero(n);
+	igl::heat_vector_solve(data, (Eigen::VectorXi(1) << vertex).finished(),  (VectorXC(1) << 1.).finished(), H);
+
+	Eigen::VectorXi Omega(data.x_log[vertex].size());
+	int i = 0;
+	for(const std::pair<int, Complex> &p : data.x_log[vertex])
+		x[p.first] = p.second *.0002+.02, Omega(i++) = p.first;
+	i = 0;
+	for(const std::pair<int, Complex> &p : data.x_log[vertex])
+		std::cout << x(p.first) << " " << Omega(i++) << std::endl;
+	igl::heat_vector_solve(data, Omega, x, res);
+	i = 0;
+	for(const std::pair<int, Complex> &p : data.x_log[vertex])
+		std::cout << res(p.first) << " " << Omega(i++) << std::endl;
+	// res = x;
+
+}
+
 // Explicit template instantiation
 template void igl::complex_to_vector<Eigen::Matrix<double, -1, -1, 0, -1, -1>, double>(
 	Eigen::MatrixBase<Eigen::Matrix<double, -1, -1, 0, -1, -1>> const&,
@@ -263,14 +351,24 @@ template void igl::vector_to_complex<double>(
 template bool igl::heat_vector_precompute<Eigen::Matrix<double, -1, -1, 0, -1, -1>, Eigen::Matrix<int, -1, -1, 0, -1, -1>, double>(
 	Eigen::MatrixBase<Eigen::Matrix<double, -1, -1, 0, -1, -1>> const&,
 	Eigen::MatrixBase<Eigen::Matrix<int, -1, -1, 0, -1, -1>> const&,
+	bool,
 	double,
 	igl::HeatVectorData<double> &);
 template bool igl::heat_vector_precompute<Eigen::Matrix<double, -1, -1, 0, -1, -1>, Eigen::Matrix<int, -1, -1, 0, -1, -1>, double>(
 	Eigen::MatrixBase<Eigen::Matrix<double, -1, -1, 0, -1, -1>> const&,
 	Eigen::MatrixBase<Eigen::Matrix<int, -1, -1, 0, -1, -1>> const&,
+	bool,
 	igl::HeatVectorData<double> &);
 template void igl::heat_vector_solve<double, Eigen::Matrix<int, -1, 1, 0, -1, 1>, Eigen::Matrix<std::complex<double>, -1, 1, 0, -1, 1>>(
 	igl::HeatVectorData<double> const&,
 	Eigen::MatrixBase<Eigen::Matrix<int, -1, 1, 0, -1, 1>> const&,
 	Eigen::MatrixBase<Eigen::Matrix<std::complex<double>, -1, 1, 0, -1, 1>> const&,
 	Eigen::PlainObjectBase<Eigen::Matrix<std::complex<double>, -1, 1, 0, -1, 1>> &);
+template void igl::heat_voronoi_solve<double, Eigen::Matrix<int, -1, 1, 0, -1, 1>>(
+	igl::HeatVectorData<double> const&,
+	Eigen::MatrixBase<Eigen::Matrix<int, -1, 1, 0, -1, 1>> const&,
+	Eigen::Matrix<double, -1, 1> &);
+template void igl::heat_log_solve<double>(
+	igl::HeatVectorData<double> const&,
+	int,
+	Eigen::Matrix<std::complex<double>, -1, 1> &);

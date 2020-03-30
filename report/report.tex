@@ -44,18 +44,19 @@
 	Le papier propose une méthode pour transporter parallèlement un vecteur suivant les géodésiques d'une variété. Cette méthode donne par la suite, la possibilité de calculer le $\log$ riemannien de manière efficace, de calculer des moyennes de Fréchet, ou encore de construire des diagrammes de Voronoï.
 	
 	\paragraph{Equations et méthodes numériques utilisées}
-	L'équation de la chaleur est utilisée pour calculer les distances géodésiques. Comme on a pu le voir en TP, cette méthode est très efficace et converge sous certaines conditions vers les vrais distances géodésiques. Ainsi les géodésiques ne sont pas calculées explicitement. Ces calculs généralement complexes sont remplacés par de simples résolutions de systèmes linéaires creux. Ces systèmes sont définis avec un Laplacien qui est défini sur beaucoup de types de données différentes (maillages polygonaux, nuages de points, surfaces splines, voxels ...) ce qui en fait un point fort de ce papier, l'adaptabilité. En revanche le papier commence par donner une définition formelle d'un Laplacien applicable à des champs de vecteurs (appelé Laplacien de connexion), mais par la suite la construction de la discrétisation de cet opérateur est décrite et justifier par l'intuition sans faire de lien direct avec la définition mathématique donnée. C'est dommage, une justification mathématique aurait pu être appréciable.q
+	L'équation de la chaleur est utilisée pour calculer les distances géodésiques. Comme on a pu le voir en TP, cette méthode est très efficace et converge sous certaines conditions vers les vrais distances géodésiques. Ainsi les géodésiques ne sont pas calculées explicitement. Ces calculs généralement complexes sont remplacés par de simples résolutions de systèmes linéaires creux. Ces systèmes sont définis avec un Laplacien qui est défini sur beaucoup de types de données différentes (maillages polygonaux, nuages de points, surfaces splines, voxels ...) ce qui en fait un point fort de ce papier, l'adaptabilité. En revanche le papier commence par donner une définition formelle d'un Laplacien applicable à des champs de vecteurs (appelé Laplacien de connexion), mais par la suite la construction de la discrétisation de cet opérateur est décrite et justifiée par l'intuition sans faire de lien direct avec la définition mathématique donnée initialement. C'est dommage, une justification mathématique aurait pu être appréciable.
 	
 	\paragraph{Comparaison avec le cours}
-	On retrouve l'équation de la chaleur que nous avons utilisé dans un TP pour calculer des distances géodésiques et pour échantillonner un maillage à faces triangulaires. Ce papier publié à SIGGRAPH, se veut plus orienté graphismes et géométrie algorithmique et en ce sens s'éloigne plus du cours que les autres papiers proposés en projet.
+	On retrouve l'équation de la chaleur que nous avons utilisé dans un TP pour calculer des distances géodésiques et pour échantillonner un maillage à faces triangulaires. Ce papier publié à SIGGRAPH, se veut plus orienté graphismes et géométrie algorithmique et en ce sens s'éloigne plus du cours que les autres papiers proposés en projet. Toutefois, la première application donnée dans le papier est complètement en lien avec le cours puisqu'ils proposent d'utiliser le transport parallèle pour extrapoler la composante normale de la vitesse dans la méthode des courbe de niveau sur une variété.
 	
 	\paragraph{Originalité (selon les auteurs)}
-	Ce papier est dans la continuité d'un précédent papier de Keenan Crane, sur le calcul des distances géodésiques via l'équation de la chaleur \cite{HM}. Leur approche est original dans le sens où ils semblent être les seuls à avoir creuser cette approche par l'équation de la chaleur pour le transport parallèle. Les approches précédentes se basaient généralement sur un calcul explicite des géodésiques. Or calculer toutes les distances à partir d'un sommet de manière exacte a une complexité en $\mathcal{O}(n^2 \log n)$, où $n$ est le nombre d'arrêtes. Cette complexité est bien trop grande et les algorithmes qui approximent ces géodésiques à moindre coût peuvent donner des résultats trop différents et ont une complexité au minimum de l'ordre de $\mathcal{O}(n^{1.5})$. Ici la solution proposé possède une complexité proche de $\mathcal{O}(n)$ et les résultats sont très satisfaisant.
+	Ce papier est dans la continuité d'un précédent papier de Keenan Crane, sur le calcul des distances géodésiques via l'équation de la chaleur \cite{HM}. Leur approche est original dans le sens où ils semblent être les seuls à avoir creuser cette approche par l'équation de la chaleur pour le transport parallèle. Les approches précédentes se basaient généralement sur un calcul explicite des géodésiques. Or calculer toutes les distances à partir d'un sommet de manière exacte a une complexité en $\mathcal{O}(n^2 \log n)$, où $n$ est le nombre d'arrêtes. Cette complexité est bien trop grande et les algorithmes qui approximent ces géodésiques à moindre coût peuvent donner des résultats trop différents et ont une complexité au minimum de l'ordre de $\mathcal{O}(n^{1.5})$ puisque la longueur d'une géodésique est de l'ordre de $\mathcal{O}(\sqrt{n})$. Ici la solution proposé possède une complexité proche de $\mathcal{O}(n)$ et les résultats sont très satisfaisant. Je n'ai testé, mais les auteurs précisent que le simple fait de tracer les géodésiques est 10 à 20 fois plus long que leur méthode de transport parallèle.
 	
 	\paragraph{Résultats nouveaux}
-	Selon les auteurs, ils sont les premiers à proposé un calcul de la carte logarithme efficace. Selon une figure donnée dans l'article les anciennes méthodes engendraient des erreurs non négligeables sur l'orientation pour les sommets assez éloignés du sommet initial. Ce résultats entraîne immédiatement une première méthode de calcul de moyennes de Fréchet précise et efficace. Encore une fois, les comparaisons faites avec les précédentes méthodes sont bluffantes.
+	Selon eux, les auteurs seraient les premiers à proposé un calcul de la carte logarithme efficace. Selon une figure donnée dans l'article les anciennes méthodes engendraient des erreurs non négligeables sur l'orientation pour les sommets assez éloignés du sommet initial, alors que la méthode présentée dans ce papier donne de très bon résultats. De plus ce calcul efficace du $\log$ entraîne immédiatement une première méthode de calcul de moyennes de Fréchet précise et efficace. Encore une fois, les comparaisons faites avec les précédentes méthodes sont assez bluffantes.
 	
 	\paragraph{Faiblesses}
+	La méthode possède tout de même des défauts. En effet l'orientation des vecteurs a tendance à être mauvaise au niveau des lignes de coupures (l'ensemble des sommets qui possèdent plusieurs plus courts chemin vers la source).
 	
 	\section{Résumé}
 	
@@ -194,20 +195,27 @@
 	\paragraph{Autres discrétisations}
 	Dans une section de l'article d'autres schéma de discrétisation sont donnés pour des types de données différentes : champs de 1-formes et $n$-champs. Il est aussi expliqué que pour d'autres représentation d'une variété pour lesquels on possède une discrétisation du Laplacien $L$, le Laplacien de connexion $L^\nabla$ peut être construit en utilisant le même procédé que précédemment, simplement en multipliant les coefficients qui ne sont pas sur la diagonale par les valeurs $r_{ij}$ de changement de face.
 	
+	\subsection{Propriétés et Résultats}
+	
+	La méthode de discrétisation proposée à le grand avantage de conserver plusieurs propriétés essentielles du transport parallèle quand on utilise une unique source :
+	\begin{itemize}
+		\item La méthode est linéaire : $P_\gamma \left( a X + Y \right) = a P_\gamma(X) + P_\gamma(Y)$.
+		\item La norme est conservée : $| P_\gamma(X) | = | X |$.
+		\item Une rotation du vecteur initial $X$ tourne le champ obtenu du même angle.
+		\item La méthode est symétrique : $P_{\gamma_{y \rightarrow x}} \circ P_{\gamma_{x \rightarrow y}} = \text{id}$. Cela vient du faire que $L^\nabla$ soit Hermitienne.
+	\end{itemize}
+	
+	\paragraph{Convergence}
+	En notant $h$ la longueur moyenne des arrêtes du maillage, la méthode proposée semble converger en $\mathcal{O}(h)$, ce qui est moins bien que la méthode exacte traçant les géodésiques sur un polyèdre et qui possède une convergence quadratique $\mathcal{O}(h^2)$. Je n'ai pas testé cette convergence mais le papier montre un exemple de convergence sur un tore dont ils raffinent le maillage. La solution exacte étant facilement calculable théoriquement dans le cas d'un tore. Mais bien sûr les temps de calcul ne sont pas comparables, et l'avantage de la méthode présentée, est sa rapidité bien supérieur. Enfin comme dans pour le calcul des distances géodésiques, les meilleurs résultats sont obtenus en prenant $t = h^2$.
+	
+	\subsection{Applications}
+	
+	\paragraph{Extrapolation de vitesses}
+	Finalement le papier propose plusieurs applications. La première est la possibilité d'extrapoler un champ de vitesses via le transport parallèle. Cette extrapolation peut s'avérer utile pour la composante normale de la vitesse dans la méthode des courbes de niveau. En cours nous avions surtout vu cette méthode dans des espaces euclidiens. Ici le papier donne la possibilité de l'étendre aux maillages.
+	
 	\appendix
 	
 	\bibliographystyle{alpha}
 	\bibliography{bib.bib}
-	
-	\section{Compléments de géométrie différentielle}
-	
-	Cette section a pour but de clarifier certaines notions non abordées dans les cours qui traitent de géométrie différentielle au sein du master MVA. On utilisera la convention de sommation d'Einstein.
-	
-	\subsection{Seconde dérivée covariante}
-	
-	On souhaite définir un opérateur linéaire de second ordre $\nabla^2$ à l'aide d'une dérivée covariante $\nabla$. Soit $X, Y$ et $Z$ des champs de vecteurs. Par linéarité on doit avoir.
-	$$ \nabla_{X, Y}^2 Z = X^i Y^j \nabla_{i, j}^2 Z = X^i Y^j \nabla_i \left( \nabla_j Z \right) $$
-	Or on a aussi :
-	$$ \nabla_X \left( \nabla_Y Z \right) = X^i \nabla_i \left( Y^j \nabla_j Z \right) = X^i Y^j \nabla_i \left( \nabla_j Z \right) + X^i \left( \nabla_i Y^j \right) \left( \nabla_j Z \right) = \nabla_{X, Y}^2 Z + \left( \nabla_X Y^j \right) \left( \nabla_j Z \right) $$
 
 \end{document}

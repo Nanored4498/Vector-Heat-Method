@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
 	double avg_l = igl::avg_edge_length(V,F);
 	double t = std::pow(avg_l, 2);
 	const auto precompute = [&]() {
-		if(!igl::heat_vector_precompute(V, F, t, hvm_data)) {
+		if(!igl::heat_vector_precompute(V, F, true, t, hvm_data)) {
 			std::cerr << "Error: heat_vector_precompute failed." << std::endl;
 			exit(EXIT_FAILURE);
 		};
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
 	igl::opengl::glfw::Viewer viewer;
 	int mesh_id = viewer.data().id;
 	viewer.data(mesh_id).set_mesh(V, F);
-	viewer.data(mesh_id).set_colors(Eigen::RowVector3d(0.9, 0.3, 0.1));
+	viewer.data(mesh_id).set_colors(Eigen::RowVector3d(0.8, 0.3, 0.1));
 	viewer.data(mesh_id).show_lines = false;
 	viewer.launch_init(true, false, "vector heat method");
 
@@ -58,14 +58,14 @@ int main(int argc, char *argv[]) {
 	Eigen::VectorXi Omega;
 
 	// Final field
-	Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1>  X_omega, barX;
+	Eigen::VectorXcd X_omega, barX;
 	Eigen::VectorXd D;
 	Eigen::RowVector3d tmp_vec;
 	viewer.append_mesh();
 	int res_id = viewer.data_list.back().id;
 	viewer.data(res_id).line_width = 2.8;
 	viewer.data(res_id).point_size = 2*viewer.data(res_id).line_width;
-	Eigen::MatrixX3d res(V.rows(), 3), vec_col;
+	Eigen::MatrixX3d res(V.rows(), 3), res_col;
 	std::ofstream writer;
 
 	// Some information on clicks
@@ -144,6 +144,7 @@ int main(int argc, char *argv[]) {
 		"  [SPACE]     Compute the parallel transport\n"
 		"  -/+         Decrease/increase t by factor of 10.0\n"
 		"  D,d         Toggle using intrinsic Delaunay discrete differential operators\n"
+		"  S,s         Take a screenshot\n"
 		"\n";
 
 	// For screenshots
@@ -171,10 +172,13 @@ int main(int argc, char *argv[]) {
 			}
 			break;
 		case GLFW_KEY_SPACE:
+			viewer.data(res_id).clear();
+			viewer.data(mesh_id).set_colors(Eigen::RowVector3d(0.8, 0.2, 0.1));
+			if(Omega.size() == 0) break;
 			X_omega.resize(Omega.size(), 1);
 			for(int i = 0; i < Omega.size(); ++i) X_omega(i) = X[Omega(i)];
-			igl::heat_vector_solve(hvm_data, Omega, X_omega, barX);
-			igl::heat_geodesics_solve(geod_data, Omega, D);
+			igl::heat_log_solve(hvm_data, Omega(0), barX);
+			// igl::heat_vector_solve(hvm_data, Omega, X_omega, barX);
 			writer.open("../field.obj");
 			for(int i = 0; i < V.rows(); ++i) {
 				igl::complex_to_vector(V, hvm_data, i, barX(i), tmp_vec);
@@ -182,13 +186,19 @@ int main(int argc, char *argv[]) {
 				res.row(i) = tmp_vec;
 			}
 			writer.close();
-			vec_col = (D / D.maxCoeff()).replicate(1, 3);
-			viewer.data(mesh_id).set_colors(vec_col);
-			viewer.data(res_id).clear();
-			vec_col.array() *= 0.66;
-			vec_col.array() += 0.16;
-			viewer.data(res_id).add_edges(V, V + res, vec_col);
-			viewer.data(res_id).set_points(V, vec_col);
+			igl::heat_geodesics_solve(geod_data, Omega, D);
+			res_col = (D / D.maxCoeff()).replicate(1, 3);
+			viewer.data(mesh_id).set_colors(res_col);
+			res_col.array() *= 0.66;
+			res_col.array() += 0.15;
+			viewer.data(res_id).add_edges(V, V + res, res_col);
+			viewer.data(res_id).set_points(V, res_col);
+
+			// igl::heat_voronoi_solve(hvm_data, Omega, D);
+			// res_col = Eigen::MatrixX3d::Random(Omega.size(), 3);
+			// for(int i = 0; i < V.rows(); ++i)
+			// 	res.row(i) = res_col.row(std::max(0, std::min(int(Omega.size())-1, int(0.5+D(i)))));
+			// viewer.data(mesh_id).set_colors(res);
 			break;
 		case 'D':
 		case 'd':
@@ -211,9 +221,6 @@ int main(int argc, char *argv[]) {
 			B.resize((int) viewer.core().viewport(2), (int) viewer.core().viewport(3));
 			A.resize((int) viewer.core().viewport(2), (int) viewer.core().viewport(3));
 			igl::my_draw_buffer(viewer, false, R, G, B, A);
-			// viewer.core().draw_buffer(viewer.data(mesh_id), false, R, G, B, A);
-			// viewer.draw();
-			// viewer.core().draw_buffer(viewer.data(X_id), true, R, G, B, A);
 			file_name.str("");
 			file_name << "../screen_" << (screen_number++) << ".png";
 			std::cout << file_name.str() << std::endl;
