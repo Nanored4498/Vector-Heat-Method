@@ -41,19 +41,19 @@
 	\section{Etude synthétique de l'article}
 	
 	\paragraph{Problème traité}
-	Le papier propose une méthode pour transporter parallèlement un vecteur selon les géodésiques d'une variété. Cette méthode donne par la suite, la possibilité de calculer le $\log$ riemannien de manière efficace, de calculer des moyennes de Fréchet, ou encore de construire des diagrammes de Voronoï.
+	Le papier propose une méthode pour transporter parallèlement un vecteur suivant les géodésiques d'une variété. Cette méthode donne par la suite, la possibilité de calculer le $\log$ riemannien de manière efficace, de calculer des moyennes de Fréchet, ou encore de construire des diagrammes de Voronoï.
 	
 	\paragraph{Equations et méthodes numériques utilisées}
-	L'équation de la chaleur est utilisée pour calculer les distances géodésiques. Comme on a pu le voir en TP, cette méthode est très efficace et converge sous certaines conditions vers les vrais distances géodésiques. Ainsi les géodésiques ne sont pas calculées explicitement. Ces calculs généralement complexes sont remplacés par de simples résolutions de systèmes linéaires creux. Ces systèmes sont définis avec un Laplacien qui est défini sur beaucoup de types de données différentes (maillages polygonaux, nuages de points, surfaces splines, voxels ...) ce qui en fait un point fort de ce papier, l'adaptabilité. En revanche le papier commence par donner une définition formelle d'un Laplacien applicable à des champs de vecteurs (appelé Laplacien de connexion), mais par la suite la construction de la discrétisation de cet opérateur est décrite et justifier par l'intuition sans faire de lien direct avec la définition mathématique donnée. C'est dommage, une justification mathématique aurait pu être appréciable.
+	L'équation de la chaleur est utilisée pour calculer les distances géodésiques. Comme on a pu le voir en TP, cette méthode est très efficace et converge sous certaines conditions vers les vrais distances géodésiques. Ainsi les géodésiques ne sont pas calculées explicitement. Ces calculs généralement complexes sont remplacés par de simples résolutions de systèmes linéaires creux. Ces systèmes sont définis avec un Laplacien qui est défini sur beaucoup de types de données différentes (maillages polygonaux, nuages de points, surfaces splines, voxels ...) ce qui en fait un point fort de ce papier, l'adaptabilité. En revanche le papier commence par donner une définition formelle d'un Laplacien applicable à des champs de vecteurs (appelé Laplacien de connexion), mais par la suite la construction de la discrétisation de cet opérateur est décrite et justifier par l'intuition sans faire de lien direct avec la définition mathématique donnée. C'est dommage, une justification mathématique aurait pu être appréciable.q
 	
 	\paragraph{Comparaison avec le cours}
-	On retrouve l'équation de la chaleur que nous avons utilisé dans un TP pour calculer des distances géodésiques et pour échantillonner un maillage à faces triangulaires. Ce papier publié à SIGGRAPH, se veut plus orienté graphismes et géométrie algorithmique et en ce sens s'éloigne plus du cours que les autres papiers proposés.
+	On retrouve l'équation de la chaleur que nous avons utilisé dans un TP pour calculer des distances géodésiques et pour échantillonner un maillage à faces triangulaires. Ce papier publié à SIGGRAPH, se veut plus orienté graphismes et géométrie algorithmique et en ce sens s'éloigne plus du cours que les autres papiers proposés en projet.
 	
 	\paragraph{Originalité (selon les auteurs)}
-	Ce papier est dans la continuité d'un précédent papier de Keenan Crane, sur le calcul des distances géodésiques via l'équation de la chaleur \cite{HM}. Leur approche est original dans le sens où ils semblent être les seuls à avoir creuser cette approche par l'équation de la chaleur pour le transport parallèle. Les approches précédentes se basaient généralement sur un calcul explicite des géodésiques. Or calculer toutes les distances à partir d'un sommet de manière exacte a une complexité en $\mathcal{O}(n^2 \log n)$, où $n$ est le nombre d'arrêtes. Cette complexité est bien trop grande et les algorithmes qui approximent ces géodésiques à moindre coût peuvent donner des résultats trop différents. Ici la solution proposé possède une complexité proche de $\mathcal{O}(n)$.
+	Ce papier est dans la continuité d'un précédent papier de Keenan Crane, sur le calcul des distances géodésiques via l'équation de la chaleur \cite{HM}. Leur approche est original dans le sens où ils semblent être les seuls à avoir creuser cette approche par l'équation de la chaleur pour le transport parallèle. Les approches précédentes se basaient généralement sur un calcul explicite des géodésiques. Or calculer toutes les distances à partir d'un sommet de manière exacte a une complexité en $\mathcal{O}(n^2 \log n)$, où $n$ est le nombre d'arrêtes. Cette complexité est bien trop grande et les algorithmes qui approximent ces géodésiques à moindre coût peuvent donner des résultats trop différents et ont une complexité au minimum de l'ordre de $\mathcal{O}(n^{1.5})$. Ici la solution proposé possède une complexité proche de $\mathcal{O}(n)$ et les résultats sont très satisfaisant.
 	
 	\paragraph{Résultats nouveaux}
-	Selon les auteurs, ils sont les premiers à proposé un calcul de la carte logarithme efficace. Selon une figure donnée dans l'article les anciennes méthodes engendraient des erreurs non négligeables sur l'orientation pour les sommets assez éloignés du sommet initial. Ce résultats entraîne immédiatement une première méthode de calcul de moyennes de Fréchet précise et efficace.
+	Selon les auteurs, ils sont les premiers à proposé un calcul de la carte logarithme efficace. Selon une figure donnée dans l'article les anciennes méthodes engendraient des erreurs non négligeables sur l'orientation pour les sommets assez éloignés du sommet initial. Ce résultats entraîne immédiatement une première méthode de calcul de moyennes de Fréchet précise et efficace. Encore une fois, les comparaisons faites avec les précédentes méthodes sont bluffantes.
 	
 	\paragraph{Faiblesses}
 	
@@ -141,7 +141,7 @@
 		\end{tikzpicture}
 	\end{center}
 	
-	On notera aussi $\varphi_{ij}$ l'angle entre les vecteurs $\overrightarrow{ij_0}$ et $\overrightarrow{ij}$ pour $j$ un voisin de $i$. Ainsi le vecteur $\overrightarrow{ij}$ est représenté par l'angle $\varphi_{ij}$ dans la face $i$ et par l'angle $\varphi_{ji} + \pi$ dans la face $j$. Pour représenter un vecteur un vecteur de la face $j$ dans la face $i$ il suffit alors de multiplier par le complexe :
+	Les détails pour définir l'angle $\varphi$ sont donnés dans le papier, mais je ne les redonnerai pas, car ce n'est pas d'une importance capitale. On note par la suite $\varphi_{ij}$ l'angle entre les vecteurs $\overrightarrow{ij_0}$ et $\overrightarrow{ij}$ pour $j$ un voisin de $i$. Ainsi le vecteur $\overrightarrow{ij}$ est représenté par l'angle $\varphi_{ij}$ dans la face $i$ et par l'angle $\varphi_{ji} + \pi$ dans la face $j$. Pour représenter un vecteur un vecteur de la face $j$ dans la face $i$ il suffit alors de multiplier par le complexe :
 	$$ r_{ij} = \exp \left( \iota \left( \varphi_{ij} - \varphi_{ji} + \pi \right) \right) $$
 	\begin{center}
 		\begin{tikzpicture}[scale=1.3]
@@ -157,7 +157,7 @@
 			\coordinate (j8) at ({1.5+1.2*cos(50)}, {1.2*sin(50)});
 			
 			\draw[thick] (i) -- (j0) -- (j1) -- (j2) -- (i) -- (j3) -- (j4) -- (i) -- (j5) -- (j0) -- (j6) -- (j1) -- (j7) -- (j8) -- (j2);
-			\draw[thick, red] (i) -- (j1);
+			\draw[very thick, red] (i) -- (j1);
 			\draw[thick] (j2) -- (j3);
 			\draw[thick] (j4) -- (j5);
 			\draw[thick] (j8) -- (j1);
@@ -181,14 +181,17 @@
 			\draw[thick, blue] ({1.5+0.3*cos(50)}, {0.3*sin(50)}) arc(44:180:0.3) node[pos=0.3, above=-2pt] {$\varphi_{ji}$};
 		\end{tikzpicture}
 	\end{center}
-	Ainsi en reprenant le Laplacien cotangent $L$ pour un maillage triangulaire (vu en TP), on obtient le Laplacien de connexion $L^\nabla$ via :
+	Ainsi en reprenant le Laplacien cotangent $L$ pour un maillage triangulaire (vu en TP), on peut définir le Laplacien de connexion $L^\nabla$ via :
 	$$ L_{ij}^\nabla = \syst{ll}{
 		L_{ij} & \text{Si } i = j \\
 		r_{ij} L_{ij} & \text{Si } i \neq j
 	} $$
 	Comme $r_{ji} = \overline{r_{ij}}$, la matrice $L^\nabla$ construite est Hermitienne en supposant que $L$ soit symétrique.
+	
+	\paragraph{Triangulation intrinsèque de Delaunay}
+	Enfin la qualité du maillage a son importance sur le résultat. Pour palier à cela, les auteurs du papier proposent d'effectuer une triangulation intrinsèque de Delaunay comme cela a déjà été proposé avant pour le calcul des distances géodésiques via la propagation de la chaleur.
 
-	\paragraph{Autres discrétisation}
+	\paragraph{Autres discrétisations}
 	Dans une section de l'article d'autres schéma de discrétisation sont donnés pour des types de données différentes : champs de 1-formes et $n$-champs. Il est aussi expliqué que pour d'autres représentation d'une variété pour lesquels on possède une discrétisation du Laplacien $L$, le Laplacien de connexion $L^\nabla$ peut être construit en utilisant le même procédé que précédemment, simplement en multipliant les coefficients qui ne sont pas sur la diagonale par les valeurs $r_{ij}$ de changement de face.
 	
 	\appendix

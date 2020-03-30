@@ -2,13 +2,16 @@
 #include <igl/unproject_onto_mesh.h>
 #include <igl/avg_edge_length.h>
 #include <igl/opengl/glfw/Viewer.h>
-// #include <igl/opengl/create_shader_program.h>
-// #include <igl/opengl/destroy_shader_program.h>
+#include <igl/heat_geodesics.h>
+#include <igl/opengl/create_shader_program.h>
+#include <igl/opengl/destroy_shader_program.h>
+#include <igl/png/writePNG.h>
 #include <GLFW/glfw3.h>
 
 #include "heat_vector.h"
-#include <vector>
+#include "my_draw_buffer.h"
 
+#include <vector>
 #include <iostream>
 #include <fstream>
 
@@ -21,11 +24,16 @@ int main(int argc, char *argv[]) {
 
 	// Precomputation for vector heat method [In build]
 	igl::HeatVectorData<double> hvm_data;
+	igl::HeatGeodesicsData<double> geod_data;
 	double avg_l = igl::avg_edge_length(V,F);
 	double t = std::pow(avg_l, 2);
 	const auto precompute = [&]() {
 		if(!igl::heat_vector_precompute(V, F, t, hvm_data)) {
 			std::cerr << "Error: heat_vector_precompute failed." << std::endl;
+			exit(EXIT_FAILURE);
+		};
+		if(!igl::heat_geodesics_precompute(V, F, t, geod_data)) {
+			std::cerr << "Error: heat_geodesic_precompute failed." << std::endl;
 			exit(EXIT_FAILURE);
 		};
 	};
@@ -39,34 +47,25 @@ int main(int argc, char *argv[]) {
 	viewer.data(mesh_id).show_lines = false;
 	viewer.launch_init(true, false, "vector heat method");
 
-	// const int nt = 8;
-	// Eigen::MatrixX3d Vec(V.rows(), 3);
-	// Eigen::Matrix<double, 1, 3> vec;
-	// for(int i = 0; i < nt; ++i) {
-	// 	for(int vert = 0; vert < V.rows(); ++vert) {
-	// 		igl::complex_to_vector(V, hvm_data, vert, std::polar(0.4*std::sqrt(t), (2*M_PI*i)/nt), vec);
-	// 		Vec.row(vert) = vec;
-	// 	}
-	// 	viewer.data().add_edges(V, V+Vec, Eigen::RowVector3d(0.8*i/nt, 0.5+0.33*i/nt, 1-i/nt));
-	// }
-
 	// Initial vector field
 	viewer.append_mesh();
 	int X_id = viewer.data_list.back().id;
-	viewer.data(X_id).line_width = 3.6;
-	Eigen::RowVector3d X_color(0.3, 0.1, 0.9);
+	viewer.data(X_id).line_width = 4;
+	viewer.data(X_id).point_size = 2*viewer.data(X_id).line_width;
+	Eigen::RowVector3d X_color(0.3, 0.1, 0.5);
 	std::vector<std::complex<double>> X(V.rows(), 0);
 	std::vector<int> X_ind_in_data(V.rows(), -1);
 	Eigen::VectorXi Omega;
 
 	// Final field
 	Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1>  X_omega, barX;
+	Eigen::VectorXd D;
 	Eigen::RowVector3d tmp_vec;
 	viewer.append_mesh();
 	int res_id = viewer.data_list.back().id;
 	viewer.data(res_id).line_width = 2.8;
-	Eigen::RowVector3d res_color(0.3, 0.9, 0.3);
-	Eigen::MatrixX3d res(V.rows(), 3);
+	viewer.data(res_id).point_size = 2*viewer.data(res_id).line_width;
+	Eigen::MatrixX3d res(V.rows(), 3), vec_col;
 	std::ofstream writer;
 
 	// Some information on clicks
@@ -103,7 +102,8 @@ int main(int argc, char *argv[]) {
 	};
 
 	int clicked_vertex = -1;
-	viewer.callback_mouse_down = [&](igl::opengl::glfw::Viewer& viewer, int, int)->bool {
+	viewer.callback_mouse_down = [&](igl::opengl::glfw::Viewer& viewer, int but, int modif)->bool {
+		if(but != GLFW_MOUSE_BUTTON_LEFT || (modif & GLFW_MOD_SHIFT)) return false;
 		clicked_vertex = get_vertex();
 		return clicked_vertex >= 0;
 	};
@@ -113,7 +113,8 @@ int main(int argc, char *argv[]) {
 	};
 
 	Eigen::RowVector3d pos;
-	viewer.callback_mouse_up = [&](igl::opengl::glfw::Viewer& viewer, int, int)->bool {
+	viewer.callback_mouse_up = [&](igl::opengl::glfw::Viewer& viewer, int but, int modif)->bool {
+		if(but != GLFW_MOUSE_BUTTON_LEFT || (modif & GLFW_MOD_SHIFT)) return false;
 		if(clicked_vertex >= 0 && get_pos(pos)) {
 			Eigen::RowVector3d vec = pos - V.row(clicked_vertex);
 			igl::vector_to_complex(hvm_data, clicked_vertex, vec, X[clicked_vertex]);
@@ -122,6 +123,7 @@ int main(int argc, char *argv[]) {
 			if(X_ind_in_data[clicked_vertex] < 0) {
 				X_ind_in_data[clicked_vertex] = viewer.data(X_id).lines.rows();
 				viewer.data(X_id).add_edges(v, v + vec, X_color);
+				viewer.data(X_id).add_points(v, X_color);
 				Omega.conservativeResize(Omega.size()+1);
 				Omega(Omega.size()-1) = clicked_vertex;
 			} else {
@@ -137,11 +139,17 @@ int main(int argc, char *argv[]) {
 
 	std::cout << "Usage:\n"
 		"  [click]     Click on mesh then drag an release the button to add a new vector in X\n"
+		"              If shift is pressed, then a rotation will be done instead of adding a vector\n"
 		"  [BACKSPACE] When mouse button is pressed, remove vector at selected vertex\n"
 		"  [SPACE]     Compute the parallel transport\n"
 		"  -/+         Decrease/increase t by factor of 10.0\n"
 		"  D,d         Toggle using intrinsic Delaunay discrete differential operators\n"
 		"\n";
+
+	// For screenshots
+	int screen_number = 0;
+	std::stringstream file_name;
+	Eigen::Matrix<unsigned char,Eigen::Dynamic,Eigen::Dynamic> R, G, B, A;
 
 	viewer.callback_key_down = [&](igl::opengl::glfw::Viewer&, unsigned int key, int mod)->bool {
 		switch(key) {
@@ -154,7 +162,9 @@ int main(int argc, char *argv[]) {
 					Omega.conservativeResize(Omega.size()-1);
 					viewer.data(X_id).lines.row(ind) = viewer.data(X_id).lines.row(Omega.size());
 					viewer.data(X_id).lines.conservativeResize(Omega.size(), Eigen::NoChange);
-					viewer.data(X_id).dirty |= igl::opengl::MeshGL::DIRTY_OVERLAY_LINES;
+					viewer.data(X_id).points.row(ind) = viewer.data(X_id).points.row(Omega.size());
+					viewer.data(X_id).points.conservativeResize(Omega.size(), Eigen::NoChange);
+					viewer.data(X_id).dirty |= igl::opengl::MeshGL::DIRTY_OVERLAY_LINES | igl::opengl::MeshGL::DIRTY_OVERLAY_POINTS;
 					X_ind_in_data[clicked_vertex] = -1;
 				}
 				clicked_vertex = -1;
@@ -164,6 +174,7 @@ int main(int argc, char *argv[]) {
 			X_omega.resize(Omega.size(), 1);
 			for(int i = 0; i < Omega.size(); ++i) X_omega(i) = X[Omega(i)];
 			igl::heat_vector_solve(hvm_data, Omega, X_omega, barX);
+			igl::heat_geodesics_solve(geod_data, Omega, D);
 			writer.open("../field.obj");
 			for(int i = 0; i < V.rows(); ++i) {
 				igl::complex_to_vector(V, hvm_data, i, barX(i), tmp_vec);
@@ -171,12 +182,18 @@ int main(int argc, char *argv[]) {
 				res.row(i) = tmp_vec;
 			}
 			writer.close();
+			vec_col = (D / D.maxCoeff()).replicate(1, 3);
+			viewer.data(mesh_id).set_colors(vec_col);
 			viewer.data(res_id).clear();
-			viewer.data(res_id).add_edges(V, V + res, res_color);
+			vec_col.array() *= 0.66;
+			vec_col.array() += 0.16;
+			viewer.data(res_id).add_edges(V, V + res, vec_col);
+			viewer.data(res_id).set_points(V, vec_col);
 			break;
 		case 'D':
 		case 'd':
 			hvm_data.use_intrinsic_delaunay = !hvm_data.use_intrinsic_delaunay;
+			geod_data.use_intrinsic_delaunay = hvm_data.use_intrinsic_delaunay;
 			if(!hvm_data.use_intrinsic_delaunay) std::cout << "not ";
 			std::cout << "using intrinsic delaunay..." << std::endl;
 			precompute();
@@ -187,25 +204,40 @@ int main(int argc, char *argv[]) {
 			precompute();
 			std::cout << "t: " << t << std::endl;
 			break;
+		case 'S':
+		case 's':
+			R.resize((int) viewer.core().viewport(2), (int) viewer.core().viewport(3));
+			G.resize((int) viewer.core().viewport(2), (int) viewer.core().viewport(3));
+			B.resize((int) viewer.core().viewport(2), (int) viewer.core().viewport(3));
+			A.resize((int) viewer.core().viewport(2), (int) viewer.core().viewport(3));
+			igl::my_draw_buffer(viewer, false, R, G, B, A);
+			// viewer.core().draw_buffer(viewer.data(mesh_id), false, R, G, B, A);
+			// viewer.draw();
+			// viewer.core().draw_buffer(viewer.data(X_id), true, R, G, B, A);
+			file_name.str("");
+			file_name << "../screen_" << (screen_number++) << ".png";
+			std::cout << file_name.str() << std::endl;
+			igl::png::writePNG(R, G, B, A, file_name.str());
+			break;
 		default:
 			return false;
 		}
 		return true;
 	};
 
-	// std::ifstream f("../shader.vert");
-	// std::string mesh_vertex_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
-	// f.close();
-	// f.open("../cartoon.frag");
-	// std::string mesh_fragment_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
-	// f.close();
-	// viewer.data(mesh_id).meshgl.init();
-	// igl::opengl::destroy_shader_program(viewer.data(mesh_id).meshgl.shader_mesh);
-	// igl::opengl::create_shader_program(
-	// 	mesh_vertex_shader_string,
-	// 	mesh_fragment_shader_string,
-	// 	{},
-	// 	viewer.data(mesh_id).meshgl.shader_mesh);
+	std::ifstream f("../shader.vert");
+	std::string mesh_vertex_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
+	f.close();
+	f.open("../shader.frag");
+	std::string mesh_fragment_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
+	f.close();
+	viewer.data(mesh_id).meshgl.init();
+	igl::opengl::destroy_shader_program(viewer.data(mesh_id).meshgl.shader_mesh);
+	igl::opengl::create_shader_program(
+		mesh_vertex_shader_string,
+		mesh_fragment_shader_string,
+		{},
+		viewer.data(mesh_id).meshgl.shader_mesh);
 
 	viewer.launch_rendering(true);
 	viewer.launch_shut();

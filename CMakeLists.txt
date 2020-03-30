@@ -10,9 +10,11 @@ add_subdirectory("/home/yoann/libigl" "/home/yoann/libigl/build" EXCLUDE_FROM_AL
 set(SRC
 	main.cpp
 	heat_vector.cpp
+	my_draw_buffer.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SRC})
 target_link_libraries(${PROJECT_NAME}
 	igl::opengl_glfw
+	igl::png
 )
