@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
 	// Load Mesh
 	Eigen::MatrixXi F;
 	Eigen::MatrixXd V;
-	igl::read_triangle_mesh(argc>1?argv[1]: "../meshes/bunny.obj",V,F);
+	igl::read_triangle_mesh(argc>1?argv[1]: "../meshes/bunny.obj", V, F);
 
 	// Precomputation for vector heat method [In build]
 	igl::HeatVectorData<double> hvm_data;
