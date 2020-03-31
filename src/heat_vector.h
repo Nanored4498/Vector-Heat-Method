@@ -78,6 +78,12 @@ void heat_voronoi_solve(
 	Eigen::VectorXi &res);
 
 template <typename Scalar>
+void heat_R_solve(
+	const HeatVectorData<Scalar> &data,
+	int vertex,
+	Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> &res);
+
+template <typename Scalar>
 void heat_log_solve(
 	const HeatVectorData<Scalar> &data,
 	int vertex,

@@ -316,28 +316,41 @@ void igl::heat_voronoi_solve(
 }
 
 template <typename Scalar>
-void igl::heat_log_solve(
+void igl::heat_R_solve(
 	const HeatVectorData<Scalar> &data,
 	int vertex,
 	Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> &res) {
 
-	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> VectorXS;
 	typedef std::complex<Scalar> Complex;
 	typedef Eigen::Matrix<Complex, Eigen::Dynamic, 1> VectorXC;
 
 	int n = data.neighbors.size();
-
-	VectorXC H;
-	igl::heat_vector_solve(data, (Eigen::VectorXi(1) << vertex).finished(),  (VectorXC(1) << 1.).finished(), H);
 
 	Eigen::VectorXi Omega(data.x_log[vertex].size());
 	VectorXC x(Omega.size());
 	int i = 0;
 	for(const std::pair<int, Complex> &p : data.x_log[vertex])
 		x[i] = p.second, Omega(i++) = p.first;
+	
+	res.resize(n);
 	igl::heat_vector_solve(data, Omega, x, res);
 	for(i = 0; i < n; ++i) res(i) /= abs(res(i));
 	res(vertex) = 0;
+
+}
+template <typename Scalar>
+void igl::heat_log_solve(
+	const HeatVectorData<Scalar> &data,
+	int vertex,
+	Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> &res) {
+
+	typedef Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> VectorXC;
+
+	int n = data.neighbors.size();
+
+	VectorXC H, R;
+	igl::heat_vector_solve(data, (Eigen::VectorXi(1) << vertex).finished(),  (VectorXC(1) << 1.).finished(), H);
+	igl::heat_R_solve(data, vertex, R);
 
 }
 
@@ -373,6 +386,10 @@ template void igl::heat_voronoi_solve<double, Eigen::Matrix<int, -1, 1, 0, -1, 1
 	igl::HeatVectorData<double> const&,
 	Eigen::MatrixBase<Eigen::Matrix<int, -1, 1, 0, -1, 1>> const&,
 	Eigen::VectorXi &);
+template void igl::heat_R_solve<double>(
+	igl::HeatVectorData<double> const&,
+	int,
+	Eigen::Matrix<std::complex<double>, -1, 1> &);
 template void igl::heat_log_solve<double>(
 	igl::HeatVectorData<double> const&,
 	int,

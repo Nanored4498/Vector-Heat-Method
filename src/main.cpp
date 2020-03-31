@@ -176,8 +176,10 @@ int main(int argc, char *argv[]) {
 			if(ind >= X.size()) {
 				X.conservativeResize(Omega.size());
 				viewer.data(X_id).add_edges(v, dest, X_color);
+			} else {
+				for(int i = 0; i < 3; ++i) viewer.data(X_id).lines(ind, 3+i) = dest[i];
 				viewer.data(X_id).dirty |= igl::opengl::MeshGL::DIRTY_OVERLAY_LINES;
-			} else for(int i = 0; i < 3; ++i) viewer.data(X_id).lines(ind, 3+i) = dest[i];
+			}
 			X(ind) = c;
 		}
 		clicked_vertex = -1;
@@ -247,7 +249,7 @@ int main(int argc, char *argv[]) {
 				viewer.data(mesh_id).set_colors(res);
 				break;
 			case COMPUTE_H_R:
-				igl::heat_log_solve(hvm_data, Omega(0), barX);
+				igl::heat_R_solve(hvm_data, Omega(0), barX);
 				barX *= 0.6*avg_l;
 				barX_to_res();
 				igl::heat_geodesics_solve(geod_data, Omega, D);
@@ -304,6 +306,7 @@ int main(int argc, char *argv[]) {
 			viewer.data(res_id).clear();
 			for(int i = 0; i < Omega.size(); ++i) X_ind_in_data[Omega(i)] = -1;
 			Omega.resize(0);
+			X.resize(0);
 			switch(mode) {
 			case COMPUTE_PARALLEL_TRANSPORT:
 				std::cout << "Mode: Parallel transport" << std::endl;
