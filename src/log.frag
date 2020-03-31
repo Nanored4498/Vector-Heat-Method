@@ -1,5 +1,7 @@
 #version 150
 
+#define M_PI 3.1415926535897932384626433832795
+
 uniform vec3 light_position_eye;
 uniform float specular_exponent;
 uniform float lighting_factor;
@@ -22,12 +24,12 @@ void main() {
 	}
 
 	float ni = 20.0; // number of intervals
-	float t = Kdi.r;
+	float t = atan(Kdi.r, Kdi.g) / M_PI;
 	float r = max(0.0, 1.0 - 1.5*abs(t));
 	if(t < 0) t += 2.0;
 	float g = max(0.0, 1.0 - 1.5*abs(t-2./3.));
 	float b = max(0.0, 1.0 - 1.5*abs(t-4./3.));
-	float mul = (int(Kdi.g*ni) % 2) == 0 ? 1.0 : 0.5;
+	float mul = (int(Kdi.b*ni) % 2) == 0 ? 1.0 : 0.5;
 	vec3 Kdiq = mul * vec3(r, g, b);
 
 	vec3 vector_to_light_eye = light_position_eye - position_eye;

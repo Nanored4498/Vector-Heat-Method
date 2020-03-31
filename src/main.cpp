@@ -275,16 +275,8 @@ int main(int argc, char *argv[]) {
 				igl::heat_log_solve(hvm_data, Omega(0), barX);
 				barX /= barX.cwiseAbs().colwise().maxCoeff().coeff(0);
 				res_col.resize(V.rows(), 3);
-				for(int i = 0; i < V.rows(); ++i) {
-					// double t = std::arg(barX(i)) / M_PI;
-					// double r = std::max(0.0, 1.0 - 1.5*std::abs(t));
-					// if(t < 0) t += 2;
-					// double g = std::max(0.0, 1.0 - 1.5*std::abs(t-2./3.));
-					// double b = std::max(0.0, 1.0 - 1.5*std::abs(t-4./3.));
-					// double mul = int(std::abs(barX(i))*10) % 2 == 0 ? 1.0 : 0.5;
-					// res_col.row(i) = mul * Eigen::RowVector3d(r, g, b);
-					res_col.row(i) = Eigen::RowVector3d(std::arg(barX(i)) / M_PI, std::abs(barX(i)), 0);
-				}
+				for(int i = 0; i < V.rows(); ++i)
+					res_col.row(i) = Eigen::RowVector3d(barX(i).real(), barX(i).imag(), std::abs(barX(i)));
 				viewer.data(mesh_id).set_colors(res_col);
 				break;
 			}
