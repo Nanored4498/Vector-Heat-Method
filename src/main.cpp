@@ -26,12 +26,12 @@ void load_standard_shader(igl::opengl::glfw::Viewer &viewer, int data_id) {
 	viewer.data(data_id).meshgl.init();
 }
 
-void load_my_shader(igl::opengl::glfw::Viewer &viewer, int data_id) {
+void load_my_shader(igl::opengl::glfw::Viewer &viewer, int data_id, std::string frag) {
 	load_standard_shader(viewer, data_id);
 	std::ifstream f("../src/shader.vert");
 	std::string mesh_vertex_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
 	f.close();
-	f.open("../src/shader.frag");
+	f.open(frag);
 	std::string mesh_fragment_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
 	f.close();
 	igl::opengl::destroy_shader_program(viewer.data(data_id).meshgl.shader_mesh);
@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
 	viewer.data(mesh_id).set_colors(Eigen::RowVector3d(0.8, 0.3, 0.1));
 	viewer.data(mesh_id).show_lines = false;
 	viewer.launch_init(true, false, "vector heat method");
-	load_my_shader(viewer, mesh_id);
+	load_my_shader(viewer, mesh_id, "../src/parallel.frag");
 
 	// Initial vector field
 	viewer.append_mesh();
@@ -276,13 +276,14 @@ int main(int argc, char *argv[]) {
 				barX /= barX.cwiseAbs().colwise().maxCoeff().coeff(0);
 				res_col.resize(V.rows(), 3);
 				for(int i = 0; i < V.rows(); ++i) {
-					double t = std::arg(barX(i)) / M_PI;
-					double r = std::max(0.0, 1.0 - 1.5*std::abs(t));
-					if(t < 0) t += 2;
-					double g = std::max(0.0, 1.0 - 1.5*std::abs(t-2./3.));
-					double b = std::max(0.0, 1.0 - 1.5*std::abs(t-4./3.));
-					double mul = int(std::abs(barX(i))*10) % 2 == 0 ? 1.0 : 0.5;
-					res_col.row(i) = mul * Eigen::RowVector3d(r, g, b);
+					// double t = std::arg(barX(i)) / M_PI;
+					// double r = std::max(0.0, 1.0 - 1.5*std::abs(t));
+					// if(t < 0) t += 2;
+					// double g = std::max(0.0, 1.0 - 1.5*std::abs(t-2./3.));
+					// double b = std::max(0.0, 1.0 - 1.5*std::abs(t-4./3.));
+					// double mul = int(std::abs(barX(i))*10) % 2 == 0 ? 1.0 : 0.5;
+					// res_col.row(i) = mul * Eigen::RowVector3d(r, g, b);
+					res_col.row(i) = Eigen::RowVector3d(std::arg(barX(i)) / M_PI, std::abs(barX(i)), 0);
 				}
 				viewer.data(mesh_id).set_colors(res_col);
 				break;
@@ -326,7 +327,7 @@ int main(int argc, char *argv[]) {
 			switch(mode) {
 			case COMPUTE_PARALLEL_TRANSPORT:
 				std::cout << "Mode: Parallel transport" << std::endl;
-				load_my_shader(viewer, mesh_id);
+				load_my_shader(viewer, mesh_id, "../src/parallel.frag");
 				break;
 			case COMPUTE_VORONOI:
 				std::cout << "Mode: Voronoi" << std::endl;
@@ -334,11 +335,11 @@ int main(int argc, char *argv[]) {
 				break;
 			case COMPUTE_H_R:
 				std::cout << "Mode: H and R fields" << std::endl;
-				load_my_shader(viewer, mesh_id);
+				load_my_shader(viewer, mesh_id, "../src/parallel.frag");
 				break;
 			case COMPUTE_LOG:
 				std::cout << "Mode: Log" << std::endl;
-				load_standard_shader(viewer, mesh_id);
+				load_my_shader(viewer, mesh_id, "../src/log.frag");
 				break;
 			}
 		default:
