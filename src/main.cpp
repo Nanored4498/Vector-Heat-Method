@@ -232,10 +232,10 @@ int main(int argc, char *argv[]) {
 		return true;
 	};
 
-	std::ifstream f("../shader.vert");
+	std::ifstream f("../src/shader.vert");
 	std::string mesh_vertex_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
 	f.close();
-	f.open("../shader.frag");
+	f.open("../src/shader.frag");
 	std::string mesh_fragment_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
 	f.close();
 	viewer.data(mesh_id).meshgl.init();
