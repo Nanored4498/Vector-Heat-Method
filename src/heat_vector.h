@@ -75,7 +75,7 @@ template <typename Scalar, typename DerivedOmega>
 void heat_voronoi_solve(
 	const HeatVectorData<Scalar> &data,
 	const Eigen::MatrixBase<DerivedOmega> &Omega,
-	Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &res);
+	Eigen::VectorXi &res);
 
 template <typename Scalar>
 void heat_log_solve(

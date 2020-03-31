@@ -15,6 +15,32 @@
 #include <iostream>
 #include <fstream>
 
+#define COMPUTE_PARALLEL_TRANSPORT 0
+#define COMPUTE_VORONOI 1
+#define COMPUTE_H_R 2
+#define COMPUTE_NUMBER 3
+
+void load_standard_shader(igl::opengl::glfw::Viewer &viewer, int data_id) {
+	viewer.data(data_id).meshgl.is_initialized = false;
+	viewer.data(data_id).meshgl.init();
+}
+
+void load_my_shader(igl::opengl::glfw::Viewer &viewer, int data_id) {
+	load_standard_shader(viewer, data_id);
+	std::ifstream f("../src/shader.vert");
+	std::string mesh_vertex_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
+	f.close();
+	f.open("../src/shader.frag");
+	std::string mesh_fragment_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
+	f.close();
+	igl::opengl::destroy_shader_program(viewer.data(data_id).meshgl.shader_mesh);
+	igl::opengl::create_shader_program(
+		mesh_vertex_shader_string,
+		mesh_fragment_shader_string,
+		{},
+		viewer.data(data_id).meshgl.shader_mesh);
+}
+
 int main(int argc, char *argv[]) {
 
 	// Load Mesh
@@ -39,6 +65,8 @@ int main(int argc, char *argv[]) {
 	};
 	precompute();
 
+	int mode = COMPUTE_PARALLEL_TRANSPORT;
+
 	// Show mesh
 	igl::opengl::glfw::Viewer viewer;
 	int mesh_id = viewer.data().id;
@@ -46,6 +74,7 @@ int main(int argc, char *argv[]) {
 	viewer.data(mesh_id).set_colors(Eigen::RowVector3d(0.8, 0.3, 0.1));
 	viewer.data(mesh_id).show_lines = false;
 	viewer.launch_init(true, false, "vector heat method");
+	load_my_shader(viewer, mesh_id);
 
 	// Initial vector field
 	viewer.append_mesh();
@@ -53,20 +82,27 @@ int main(int argc, char *argv[]) {
 	viewer.data(X_id).line_width = 4;
 	viewer.data(X_id).point_size = 2*viewer.data(X_id).line_width;
 	Eigen::RowVector3d X_color(0.3, 0.1, 0.5);
-	std::vector<std::complex<double>> X(V.rows(), 0);
+	Eigen::VectorXcd X;
 	std::vector<int> X_ind_in_data(V.rows(), -1);
 	Eigen::VectorXi Omega;
 
 	// Final field
-	Eigen::VectorXcd X_omega, barX;
+	Eigen::VectorXcd barX;
 	Eigen::VectorXd D;
-	Eigen::RowVector3d tmp_vec;
+	Eigen::VectorXi cluster;
 	viewer.append_mesh();
 	int res_id = viewer.data_list.back().id;
 	viewer.data(res_id).line_width = 2.8;
 	viewer.data(res_id).point_size = 2*viewer.data(res_id).line_width;
 	Eigen::MatrixX3d res(V.rows(), 3), res_col;
 	std::ofstream writer;
+	const auto barX_to_res = [&]()->void {
+		Eigen::RowVector3d tmp_vec;
+		for(int i = 0; i < V.rows(); ++i) {
+			igl::complex_to_vector(V, hvm_data, i, barX(i), tmp_vec);
+			res.row(i) = tmp_vec;
+		}
+	};
 
 	// Some information on clicks
 	const auto get_vertex = [&]()->int {
@@ -117,21 +153,32 @@ int main(int argc, char *argv[]) {
 		if(but != GLFW_MOUSE_BUTTON_LEFT || (modif & GLFW_MOD_SHIFT)) return false;
 		if(clicked_vertex >= 0 && get_pos(pos)) {
 			Eigen::RowVector3d vec = pos - V.row(clicked_vertex);
-			igl::vector_to_complex(hvm_data, clicked_vertex, vec, X[clicked_vertex]);
-			igl::complex_to_vector(V, hvm_data, clicked_vertex, X[clicked_vertex], vec);
 			Eigen::RowVector3d v = V.row(clicked_vertex) + 0.03*avg_l*hvm_data.e0.row(clicked_vertex).cross(hvm_data.e1.row(clicked_vertex));
+			if(mode == COMPUTE_H_R) {
+				Omega.resize(1);
+				Omega(0) = clicked_vertex;
+				viewer.data(X_id).clear();
+				viewer.data(X_id).add_points(v, X_color);
+				return false;
+			}
 			if(X_ind_in_data[clicked_vertex] < 0) {
-				X_ind_in_data[clicked_vertex] = viewer.data(X_id).lines.rows();
-				viewer.data(X_id).add_edges(v, v + vec, X_color);
+				X_ind_in_data[clicked_vertex] = viewer.data(X_id).points.rows();
 				viewer.data(X_id).add_points(v, X_color);
 				Omega.conservativeResize(Omega.size()+1);
 				Omega(Omega.size()-1) = clicked_vertex;
-			} else {
-				int ind = X_ind_in_data[clicked_vertex];
-				Eigen::RowVector3d dest = v + vec;
-				for(int i = 0; i < 3; ++i) viewer.data(X_id).lines(ind, 3+i) = dest[i];
-				viewer.data(X_id).dirty |= igl::opengl::MeshGL::DIRTY_OVERLAY_LINES;
 			}
+			if(mode != COMPUTE_PARALLEL_TRANSPORT) return false;
+			std::complex<double> c;
+			igl::vector_to_complex(hvm_data, clicked_vertex, vec, c);
+			igl::complex_to_vector(V, hvm_data, clicked_vertex, c, vec);
+			Eigen::RowVector3d dest = v + vec;
+			int ind = X_ind_in_data[clicked_vertex];
+			if(ind >= X.size()) {
+				X.conservativeResize(Omega.size());
+				viewer.data(X_id).add_edges(v, dest, X_color);
+				viewer.data(X_id).dirty |= igl::opengl::MeshGL::DIRTY_OVERLAY_LINES;
+			} else for(int i = 0; i < 3; ++i) viewer.data(X_id).lines(ind, 3+i) = dest[i];
+			X(ind) = c;
 		}
 		clicked_vertex = -1;
 		return false;
@@ -141,7 +188,8 @@ int main(int argc, char *argv[]) {
 		"  [click]     Click on mesh then drag an release the button to add a new vector in X\n"
 		"              If shift is pressed, then a rotation will be done instead of adding a vector\n"
 		"  [BACKSPACE] When mouse button is pressed, remove vector at selected vertex\n"
-		"  [SPACE]     Compute the parallel transport\n"
+		"  N,n         Switch mode (parallel transport/log map/...)\n"
+		"  [SPACE]     Compute the parallel transport/log map/...\n"
 		"  -/+         Decrease/increase t by factor of 10.0\n"
 		"  D,d         Toggle using intrinsic Delaunay discrete differential operators\n"
 		"  S,s         Take a screenshot\n"
@@ -159,8 +207,10 @@ int main(int argc, char *argv[]) {
 				if(X_ind_in_data[clicked_vertex] >= 0) {
 					int ind = X_ind_in_data[clicked_vertex], last = Omega(Omega.size()-1);
 					Omega(ind) = last;
+					if(X.size() > 0) X(ind) = X(X.size()-1);
 					X_ind_in_data[last] = ind;
 					Omega.conservativeResize(Omega.size()-1);
+					X.conservativeResize(Omega.size());
 					viewer.data(X_id).lines.row(ind) = viewer.data(X_id).lines.row(Omega.size());
 					viewer.data(X_id).lines.conservativeResize(Omega.size(), Eigen::NoChange);
 					viewer.data(X_id).points.row(ind) = viewer.data(X_id).points.row(Omega.size());
@@ -175,30 +225,50 @@ int main(int argc, char *argv[]) {
 			viewer.data(res_id).clear();
 			viewer.data(mesh_id).set_colors(Eigen::RowVector3d(0.8, 0.2, 0.1));
 			if(Omega.size() == 0) break;
-			X_omega.resize(Omega.size(), 1);
-			for(int i = 0; i < Omega.size(); ++i) X_omega(i) = X[Omega(i)];
-			igl::heat_log_solve(hvm_data, Omega(0), barX);
-			// igl::heat_vector_solve(hvm_data, Omega, X_omega, barX);
-			writer.open("../field.obj");
-			for(int i = 0; i < V.rows(); ++i) {
-				igl::complex_to_vector(V, hvm_data, i, barX(i), tmp_vec);
-				writer << "v " << tmp_vec(0) << " " << tmp_vec(1) << " " << tmp_vec(2) << "\n";
-				res.row(i) = tmp_vec;
+			switch(mode) {
+			case COMPUTE_PARALLEL_TRANSPORT:
+				igl::heat_vector_solve(hvm_data, Omega, X, barX);
+				barX_to_res();
+				igl::heat_geodesics_solve(geod_data, Omega, D);
+				res_col = (D / D.maxCoeff()).replicate(1, 3);
+				viewer.data(mesh_id).set_colors(res_col);
+				res_col.array() *= 0.66;
+				res_col.array() += 0.15;
+				viewer.data(res_id).add_edges(V, V + res, res_col);
+				viewer.data(res_id).set_points(V, res_col);
+				break;
+			case COMPUTE_VORONOI:
+				igl::heat_voronoi_solve(hvm_data, Omega, cluster);
+				res_col = Eigen::MatrixX3d::Random(Omega.size(), 3);
+				res_col.array() *= 0.5;
+				res_col.array() += 0.5;
+				for(int i = 0; i < V.rows(); ++i)
+					res.row(i) = cluster(i) >= 0 ? res_col.row(cluster(i)) : Eigen::RowVector3d(0.03, 0.03, 0.03);
+				viewer.data(mesh_id).set_colors(res);
+				break;
+			case COMPUTE_H_R:
+				igl::heat_log_solve(hvm_data, Omega(0), barX);
+				barX *= 0.6*avg_l;
+				barX_to_res();
+				igl::heat_geodesics_solve(geod_data, Omega, D);
+				res_col = (D / D.maxCoeff()).replicate(1, 3);
+				viewer.data(mesh_id).set_colors(res_col);
+				res_col.array() *= 0.5;
+				res_col.array() += 0.3;
+				res_col.col(0) *= 0.4;
+				res_col.col(2) *= 0.2;
+				viewer.data(res_id).add_edges(V, V + res, res_col);
+				igl::heat_vector_solve(hvm_data, Omega, (Eigen::VectorXcd(1) << 1.).finished(), barX);
+				barX *= 0.6*avg_l;
+				barX_to_res();
+				res_col = (D / D.maxCoeff()).replicate(1, 3);
+				res_col.array() *= 0.45;
+				res_col.array() += 0.5;
+				res_col.col(0) *= 0.2;
+				res_col.col(1) *= 0.3;
+				viewer.data(res_id).add_edges(V, V + res, res_col);
+				break;
 			}
-			writer.close();
-			igl::heat_geodesics_solve(geod_data, Omega, D);
-			res_col = (D / D.maxCoeff()).replicate(1, 3);
-			viewer.data(mesh_id).set_colors(res_col);
-			res_col.array() *= 0.66;
-			res_col.array() += 0.15;
-			viewer.data(res_id).add_edges(V, V + res, res_col);
-			viewer.data(res_id).set_points(V, res_col);
-
-			// igl::heat_voronoi_solve(hvm_data, Omega, D);
-			// res_col = Eigen::MatrixX3d::Random(Omega.size(), 3);
-			// for(int i = 0; i < V.rows(); ++i)
-			// 	res.row(i) = res_col.row(std::max(0, std::min(int(Omega.size())-1, int(0.5+D(i)))));
-			// viewer.data(mesh_id).set_colors(res);
 			break;
 		case 'D':
 		case 'd':
@@ -226,25 +296,33 @@ int main(int argc, char *argv[]) {
 			std::cout << file_name.str() << std::endl;
 			igl::png::writePNG(R, G, B, A, file_name.str());
 			break;
+		case 'N':
+		case 'n':
+			mode = (mode+1) % COMPUTE_NUMBER;
+			viewer.data(mesh_id).set_colors(Eigen::RowVector3d(0.8, 0.2, 0.1));
+			viewer.data(X_id).clear();
+			viewer.data(res_id).clear();
+			for(int i = 0; i < Omega.size(); ++i) X_ind_in_data[Omega(i)] = -1;
+			Omega.resize(0);
+			switch(mode) {
+			case COMPUTE_PARALLEL_TRANSPORT:
+				std::cout << "Mode: Parallel transport" << std::endl;
+				load_my_shader(viewer, mesh_id);
+				break;
+			case COMPUTE_VORONOI:
+				std::cout << "Mode: Voronoi" << std::endl;
+				load_standard_shader(viewer, mesh_id);
+				break;
+			case COMPUTE_H_R:
+				load_my_shader(viewer, mesh_id);
+				std::cout << "Mode: H and R fields" << std::endl;
+				break;
+			}
 		default:
 			return false;
 		}
 		return true;
 	};
-
-	std::ifstream f("../src/shader.vert");
-	std::string mesh_vertex_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
-	f.close();
-	f.open("../src/shader.frag");
-	std::string mesh_fragment_shader_string((std::istreambuf_iterator<char>(f)), (std::istreambuf_iterator<char>()));
-	f.close();
-	viewer.data(mesh_id).meshgl.init();
-	igl::opengl::destroy_shader_program(viewer.data(mesh_id).meshgl.shader_mesh);
-	igl::opengl::create_shader_program(
-		mesh_vertex_shader_string,
-		mesh_fragment_shader_string,
-		{},
-		viewer.data(mesh_id).meshgl.shader_mesh);
 
 	viewer.launch_rendering(true);
 	viewer.launch_shut();

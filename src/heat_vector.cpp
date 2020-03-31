@@ -236,10 +236,11 @@ bool igl::heat_vector_precompute(
 			Scalar alpha = theta(face.first, face.second) * theta_factor;
 			Scalar sin_alpha = std::sin(alpha), cos_alpha = std::cos(alpha);
 			Complex c = Complex(alpha*sin_alpha, sin_alpha - alpha*cos_alpha) / A;
-			Complex add_i(-sin_alpha*(l_ik*alpha+l_ij*sin_alpha), l_ij*(cos_alpha*sin_alpha-alpha) + l_ik*(alpha*cos_alpha - sin_alpha));
-			x_i += std::polar(1., phi_map[i][j]) * add_i / A;
-			if(j == j0) first = l_ik*c;
-			else data.x_log[i].emplace_back(j, - std::polar(1., phi_map[j][i]) * (last+l_ik*c));
+			Complex add_j = l_ik * c;
+			Complex add_i = Complex(-l_ij*sin_alpha*sin_alpha, l_ij*(cos_alpha*sin_alpha-alpha)) / A - add_j;
+			x_i += std::polar(1., phi_map[i][j]) * add_i;
+			if(j == j0) first = add_j;
+			else data.x_log[i].emplace_back(j, - std::polar(1., phi_map[j][i]) * (last+add_j));
 			last = l_ij * std::conj(c);
 			j = k;
 		} while(j != j0);
@@ -287,13 +288,14 @@ template <typename Scalar, typename DerivedOmega>
 void igl::heat_voronoi_solve(
 	const HeatVectorData<Scalar> &data,
 	const Eigen::MatrixBase<DerivedOmega> &Omega,
-	Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &res) {
+	Eigen::VectorXi &res) {
 
 	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> VectorXS;
 
 	int n = data.neighbors.size();
 
 	VectorXS u0 = VectorXS::Zero(n), phi0 = VectorXS::Zero(n);
+	std::cout << "test " << Omega.size() << " " << Omega(0) << std::endl;
 	for(int i = 0; i < Omega.size(); ++i) {
 		int x = Omega(i);
 		u0(x) = i;
@@ -301,8 +303,15 @@ void igl::heat_voronoi_solve(
 	}
 	VectorXS u = data.scal_solver.solve(u0);
 	VectorXS phi = data.scal_solver.solve(phi0);
+	res.resize(n);
 	for(int i = 0; i < n; ++i)
-		res(i) = u(i) / phi(i);
+		res(i) = std::max(0, std::min(int(Omega.size())-1, int(0.5+u(i)/phi(i))));
+	for(int i = 0; i < n; ++i) {
+		int count = 0;
+		for(const std::pair<int, Scalar> &p : data.neighbors[i])
+			if(res(p.first) == res(i)) ++count;
+		if(count < 0.7*data.neighbors[i].size()) res(i) = -1;
+	}
 
 }
 
@@ -325,8 +334,10 @@ void igl::heat_log_solve(
 	VectorXC x(Omega.size());
 	int i = 0;
 	for(const std::pair<int, Complex> &p : data.x_log[vertex])
-		x[i] = p.second*.00002, Omega(i++) = p.first;
+		x[i] = p.second, Omega(i++) = p.first;
 	igl::heat_vector_solve(data, Omega, x, res);
+	for(i = 0; i < n; ++i) res(i) /= abs(res(i));
+	res(vertex) = 0;
 
 }
 
@@ -361,7 +372,7 @@ template void igl::heat_vector_solve<double, Eigen::Matrix<int, -1, 1, 0, -1, 1>
 template void igl::heat_voronoi_solve<double, Eigen::Matrix<int, -1, 1, 0, -1, 1>>(
 	igl::HeatVectorData<double> const&,
 	Eigen::MatrixBase<Eigen::Matrix<int, -1, 1, 0, -1, 1>> const&,
-	Eigen::Matrix<double, -1, 1> &);
+	Eigen::VectorXi &);
 template void igl::heat_log_solve<double>(
 	igl::HeatVectorData<double> const&,
 	int,
