@@ -216,37 +216,53 @@ bool igl::heat_vector_precompute(
 
 	if(!precompute_log) return true;
 
-	data.x_log.clear();
-	data.x_log.resize(n);
+	data.log_data.clear();
+	data.log_data.resize(n);
 	l2 = l2.array().sqrt().eval();
+	IJV.clear();
+	IJV.reserve(num_triplets);
 	for(int i = 0; i < n; ++i) {
 		Complex x_i = 0;
 		Complex last=0, first=0;
+		Scalar last2=0, first2=0, L_ii = 0;
 		Scalar theta_factor = 2 * M_PI / sumTheta(i);
 		int j0 = data.neighbors[i][0].first;
 		if(!edge_to_face[i].count(j0)) j0 = (*edge_to_face[i].lower_bound(0)).first;
 		int j=j0, k;
+		Scalar l_ik;
 		if(!edge_to_face[j0].count(i)) j0 = data.neighbors[i].back().first;
 		do {
 			std::pair<int, int> &face = edge_to_face[i][j];
 			k = F(face.first, (face.second+2)%3);
-			Scalar l_ik = l2(face.first, (face.second+1)%3);
+			l_ik = l2(face.first, (face.second+1)%3);
 			Scalar l_ij = l2(face.first, (face.second+2)%3);
 			Scalar A = 4 * faceArea(face.first);
 			Scalar alpha = theta(face.first, face.second) * theta_factor;
 			Scalar sin_alpha = std::sin(alpha), cos_alpha = std::cos(alpha);
-			Complex c = Complex(alpha*sin_alpha, sin_alpha - alpha*cos_alpha) / A;
-			Complex add_j = l_ik * c;
+			Complex co = Complex(alpha*sin_alpha, sin_alpha - alpha*cos_alpha) / A;
+			Complex add_j = l_ik * co;
 			Complex add_i = Complex(-l_ij*sin_alpha*sin_alpha, l_ij*(cos_alpha*sin_alpha-alpha)) / A - add_j;
 			x_i += std::polar(1., phi_map[i][j]) * add_i;
-			if(j == j0) first = add_j;
-			else data.x_log[i].emplace_back(j, - std::polar(1., phi_map[j][i]) * (last+add_j));
-			last = l_ij * std::conj(c);
+			Scalar b = 0.5*cotan(theta(face.first, (face.second+1)%3));
+			Scalar c = 0.5*cotan(theta(face.first, (face.second+2)%3));
+			L_ii += b+c;
+			if(j == j0) first = add_j, first2 = c;
+			else {
+				data.log_data[i].emplace_back(j, -std::polar(1., phi_map[j][i])*(last+add_j), std::polar(l_ij, phi_map[i][j])*(last2+c));
+				IJV.emplace_back(i, j, -(last2+c));
+			}
+			last = l_ij * std::conj(co), last2 = b;
 			j = k;
 		} while(j != j0);
-		data.x_log[i].emplace_back(k, - std::polar(1., phi_map[k][i]) * (last+first));
-		data.x_log[i].emplace_back(i, x_i);
+		data.log_data[i].emplace_back(k, -std::polar(1., phi_map[k][i])*(last+first), std::polar(l_ik, phi_map[i][k])*(last2+first2));
+		data.log_data[i].emplace_back(i, x_i, 0);
+		IJV.emplace_back(i, k, -(last2+first2));
+		IJV.emplace_back(i, i, L_ii);
 	}
+	Eigen::SparseMatrix<Scalar> L(n, n);
+	L.setFromTriplets(IJV.begin(), IJV.end());
+	data.poisson_solver.compute(L);
+	if(data.poisson_solver.info() != Eigen::Success) return false;
 
 	return true;
 
@@ -326,11 +342,11 @@ void igl::heat_R_solve(
 
 	int n = data.neighbors.size();
 
-	Eigen::VectorXi Omega(data.x_log[vertex].size());
+	Eigen::VectorXi Omega(data.log_data[vertex].size());
 	VectorXC x(Omega.size());
 	int i = 0;
-	for(const std::pair<int, Complex> &p : data.x_log[vertex])
-		x[i] = p.second, Omega(i++) = p.first;
+	for(const igl::HeatLogData<Scalar> &hld : data.log_data[vertex])
+		x[i] = hld.x, Omega(i++) = hld.j;
 	
 	res.resize(n);
 	igl::heat_vector_solve(data, Omega, x, res);
@@ -338,19 +354,38 @@ void igl::heat_R_solve(
 	res(vertex) = 0;
 
 }
+
 template <typename Scalar>
 void igl::heat_log_solve(
 	const HeatVectorData<Scalar> &data,
 	int vertex,
 	Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> &res) {
 
-	typedef Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> VectorXC;
+	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> VectorXS;
+	typedef std::complex<Scalar> Complex;
+	typedef Eigen::Matrix<Complex, Eigen::Dynamic, 1> VectorXC;
 
 	int n = data.neighbors.size();
 
 	VectorXC H, R;
 	igl::heat_vector_solve(data, (Eigen::VectorXi(1) << vertex).finished(),  (VectorXC(1) << 1.).finished(), H);
 	igl::heat_R_solve(data, vertex, R);
+	
+	VectorXS div_R = VectorXS::Zero(n);
+	const auto dot = [](const Complex &a, const Complex &b)->Scalar { return a.real()*b.real() + a.imag()*b.imag(); };
+	for(int i = 0; i < n; ++i) {
+		for(const igl::HeatLogData<Scalar> &hld : data.log_data[i]) {
+			Scalar d = dot(hld.w, R(i));
+			div_R(i) -= d;
+			div_R(hld.j) += d;
+		}
+	}
+	VectorXS r = data.poisson_solver.solve(div_R);
+	r.array() -= r(vertex);
+	
+	res.resize(n);
+	for(int i = 0; i < n; ++i)
+		res(i) = std::polar(r(i), std::arg(R(i)) - std::arg(H(i)));
 
 }
 

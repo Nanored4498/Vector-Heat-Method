@@ -18,7 +18,8 @@
 #define COMPUTE_PARALLEL_TRANSPORT 0
 #define COMPUTE_VORONOI 1
 #define COMPUTE_H_R 2
-#define COMPUTE_NUMBER 3
+#define COMPUTE_LOG 3
+#define COMPUTE_NUMBER 4
 
 void load_standard_shader(igl::opengl::glfw::Viewer &viewer, int data_id) {
 	viewer.data(data_id).meshgl.is_initialized = false;
@@ -154,7 +155,7 @@ int main(int argc, char *argv[]) {
 		if(clicked_vertex >= 0 && get_pos(pos)) {
 			Eigen::RowVector3d vec = pos - V.row(clicked_vertex);
 			Eigen::RowVector3d v = V.row(clicked_vertex) + 0.03*avg_l*hvm_data.e0.row(clicked_vertex).cross(hvm_data.e1.row(clicked_vertex));
-			if(mode == COMPUTE_H_R) {
+			if(mode == COMPUTE_H_R || mode == COMPUTE_LOG) {
 				Omega.resize(1);
 				Omega(0) = clicked_vertex;
 				viewer.data(X_id).clear();
@@ -270,6 +271,21 @@ int main(int argc, char *argv[]) {
 				res_col.col(1) *= 0.3;
 				viewer.data(res_id).add_edges(V, V + res, res_col);
 				break;
+			case COMPUTE_LOG:
+				igl::heat_log_solve(hvm_data, Omega(0), barX);
+				barX /= barX.cwiseAbs().colwise().maxCoeff().coeff(0);
+				res_col.resize(V.rows(), 3);
+				for(int i = 0; i < V.rows(); ++i) {
+					double t = std::arg(barX(i)) / M_PI;
+					double r = std::max(0.0, 1.0 - 1.5*std::abs(t));
+					if(t < 0) t += 2;
+					double g = std::max(0.0, 1.0 - 1.5*std::abs(t-2./3.));
+					double b = std::max(0.0, 1.0 - 1.5*std::abs(t-4./3.));
+					double mul = int(std::abs(barX(i))*10) % 2 == 0 ? 1.0 : 0.5;
+					res_col.row(i) = mul * Eigen::RowVector3d(r, g, b);
+				}
+				viewer.data(mesh_id).set_colors(res_col);
+				break;
 			}
 			break;
 		case 'D':
@@ -317,8 +333,12 @@ int main(int argc, char *argv[]) {
 				load_standard_shader(viewer, mesh_id);
 				break;
 			case COMPUTE_H_R:
-				load_my_shader(viewer, mesh_id);
 				std::cout << "Mode: H and R fields" << std::endl;
+				load_my_shader(viewer, mesh_id);
+				break;
+			case COMPUTE_LOG:
+				std::cout << "Mode: Log" << std::endl;
+				load_standard_shader(viewer, mesh_id);
 				break;
 			}
 		default:

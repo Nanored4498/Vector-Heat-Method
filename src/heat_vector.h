@@ -7,13 +7,19 @@
 namespace igl {
 
 template <typename Scalar>
+struct HeatLogData {
+	int j;
+	std::complex<Scalar> x, w;
+	HeatLogData(int j, std::complex<Scalar> x, std::complex<Scalar> w): j(j), x(x), w(w) {}
+};
+template <typename Scalar>
 struct HeatVectorData {
 	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> e0, e1;
 	std::vector<std::vector<std::pair<int, Scalar>>> neighbors;
-	Eigen::SimplicialLDLT<Eigen::SparseMatrix<Scalar>> scal_solver;
+	Eigen::SimplicialLDLT<Eigen::SparseMatrix<Scalar>> scal_solver, poisson_solver;
 	Eigen::SimplicialLDLT<Eigen::SparseMatrix<std::complex<Scalar>>> vec_solver;
     bool use_intrinsic_delaunay = false;
-	std::vector<std::vector<std::pair<int, std::complex<Scalar>>>> x_log;
+	std::vector<std::vector<HeatLogData<Scalar>>> log_data;
 };
 
 template <typename DerivedV, typename Scalar>
