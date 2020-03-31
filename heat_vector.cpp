@@ -318,21 +318,15 @@ void igl::heat_log_solve(
 
 	int n = data.neighbors.size();
 
-	VectorXC H, x = VectorXC::Zero(n);
+	VectorXC H;
 	igl::heat_vector_solve(data, (Eigen::VectorXi(1) << vertex).finished(),  (VectorXC(1) << 1.).finished(), H);
 
 	Eigen::VectorXi Omega(data.x_log[vertex].size());
+	VectorXC x(Omega.size());
 	int i = 0;
 	for(const std::pair<int, Complex> &p : data.x_log[vertex])
-		x[p.first] = p.second *.0002+.02, Omega(i++) = p.first;
-	i = 0;
-	for(const std::pair<int, Complex> &p : data.x_log[vertex])
-		std::cout << x(p.first) << " " << Omega(i++) << std::endl;
+		x[i] = p.second*.00002, Omega(i++) = p.first;
 	igl::heat_vector_solve(data, Omega, x, res);
-	i = 0;
-	for(const std::pair<int, Complex> &p : data.x_log[vertex])
-		std::cout << res(p.first) << " " << Omega(i++) << std::endl;
-	// res = x;
 
 }
 
