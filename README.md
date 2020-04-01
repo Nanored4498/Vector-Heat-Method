@@ -2,8 +2,7 @@
 
 This is an implementation of the paper Vector Heat Method [SSC19], including the log map computation in the library LIBIGL.
 
-![](report/ims/parallel_transport.png)
-![](report/ims/bimba_log.png)
+<img src="report/ims/parallel_transport.png" width="45%" /> <img src="report/ims/bimba_log.png" width="45%" />
 
 ----
 
