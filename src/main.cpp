@@ -96,7 +96,6 @@ int main(int argc, char *argv[]) {
 	viewer.data(res_id).line_width = 2.8;
 	viewer.data(res_id).point_size = 2*viewer.data(res_id).line_width;
 	Eigen::MatrixX3d res(V.rows(), 3), res_col;
-	std::ofstream writer;
 	const auto barX_to_res = [&]()->void {
 		Eigen::RowVector3d tmp_vec;
 		for(int i = 0; i < V.rows(); ++i) {
@@ -106,12 +105,12 @@ int main(int argc, char *argv[]) {
 	};
 
 	// Some information on clicks
+	int fid;
+	Eigen::Vector3f bc;
 	const auto get_vertex = [&]()->int {
 		double x = viewer.current_mouse_x;
 		double y = viewer.core().viewport(3) - viewer.current_mouse_y;
 		viewer.selected_data_index = mesh_id;
-		int fid;
-		Eigen::Vector3f bc;
 		if(igl::unproject_onto_mesh(Eigen::Vector2f(x,y), viewer.core().view,
 				viewer.core().proj, viewer.core().viewport, V, F, fid, bc)) {
 			const Eigen::RowVector3d pos = V.row(F(fid,0))*bc(0) + V.row(F(fid,1))*bc(1) + V.row(F(fid,2))*bc(2);
@@ -128,8 +127,6 @@ int main(int argc, char *argv[]) {
 		double x = viewer.current_mouse_x;
 		double y = viewer.core().viewport(3) - viewer.current_mouse_y;
 		viewer.selected_data_index = mesh_id;
-		int fid;
-		Eigen::Vector3f bc;
 		if(igl::unproject_onto_mesh(Eigen::Vector2f(x,y), viewer.core().view,
 				viewer.core().proj, viewer.core().viewport, V, F, fid, bc)) {
 			pos = V.row(F(fid,0))*bc(0) + V.row(F(fid,1))*bc(1) + V.row(F(fid,2))*bc(2);
@@ -250,7 +247,16 @@ int main(int argc, char *argv[]) {
 				viewer.data(mesh_id).set_colors(res);
 				break;
 			case COMPUTE_H_R:
-				igl::heat_R_solve(hvm_data, Omega(0), barX);
+				{
+				Eigen::VectorXcd tmpR;
+				barX.setZero();
+				for(int i = 0; i < 3; ++i) {
+					igl::heat_R_solve(hvm_data, F(fid, i), tmpR);
+					barX += bc[i] * tmpR;
+				}
+				for(int i = 0; i < barX.rows(); ++i) barX(i) /= std::abs(barX(i));
+				}
+				// igl::heat_R_solve(hvm_data, Omega(0), barX);
 				barX *= 0.6*avg_l;
 				barX_to_res();
 				igl::heat_geodesics_solve(geod_data, Omega, D);
@@ -272,7 +278,7 @@ int main(int argc, char *argv[]) {
 				viewer.data(res_id).add_edges(V, V + res, res_col);
 				break;
 			case COMPUTE_LOG:
-				igl::heat_log_solve(hvm_data, Omega(0), barX);
+				igl::heat_log_solve(hvm_data, F.row(fid), bc, V, barX);
 				barX /= barX.cwiseAbs().colwise().maxCoeff().coeff(0);
 				res_col.resize(V.rows(), 3);
 				for(int i = 0; i < V.rows(); ++i)

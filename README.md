@@ -8,7 +8,7 @@ This is an implementation of the paper Vector Heat Method [SSC19], including the
 
 ## How to build
 
-You can lauch the BASH script `build.sh` to clone LIBIGL and build the project:
+You can launch the BASH script `build.sh` to clone LIBIGL and build the project:
 ```bash
 sh build.sh
 ```
