@@ -138,14 +138,14 @@ int main(int argc, char *argv[]) {
 	int clicked_vertex = -1;
 	viewer.callback_mouse_down = [&](igl::opengl::glfw::Viewer& viewer, int but, int modif)->bool {
 		if(but != GLFW_MOUSE_BUTTON_LEFT || (modif & GLFW_MOD_SHIFT)) {
+			clicked_vertex = -1;
 			return false;
 		}
 		clicked_vertex = get_vertex();
 		return clicked_vertex >= 0;
 	};
 
-	viewer.callback_mouse_move = [&clicked_vertex](igl::opengl::glfw::Viewer& viewer, int, int modif)->bool {
-		if(modif & GLFW_MOD_SHIFT) clicked_vertex = -1;
+	viewer.callback_mouse_move = [&clicked_vertex](igl::opengl::glfw::Viewer& viewer, int, int)->bool {
 		return clicked_vertex >= 0;
 	};
 

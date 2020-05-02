@@ -77,12 +77,6 @@ void heat_vector_solve(
 	const Eigen::MatrixBase<DerivedX> &X,
 	Eigen::PlainObjectBase<DerivedX> &res);
 
-template <typename Scalar, typename DerivedOmega>
-void heat_voronoi_solve(
-	const HeatVectorData<Scalar> &data,
-	const Eigen::MatrixBase<DerivedOmega> &Omega,
-	Eigen::VectorXi &res);
-
 template <typename Scalar>
 void heat_R_solve(
 	const HeatVectorData<Scalar> &data,
@@ -101,6 +95,24 @@ void heat_log_solve(
 	const Eigen::MatrixBase<DerivedOmega> &Omega,
 	const Eigen::MatrixBase<DerivedCoord> &coord,
 	Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> &res);
+
+template <typename Scalar, typename DerivedV, typename DerivedF, typename DerivedCoord, typename DerivedDensity>
+void heat_mean(
+	const HeatVectorData<Scalar> &data,
+	const Eigen::MatrixBase<DerivedV> &V,
+	const Eigen::MatrixBase<DerivedF> &F,
+	int &face,
+	Eigen::MatrixBase<DerivedCoord> &coord,
+	Eigen::MatrixBase<DerivedDensity> &density,
+	Scalar tau=1.,
+	int maxSteps=100,
+	Scalar vStop=1e-5);
+
+template <typename Scalar, typename DerivedOmega>
+void heat_voronoi_solve(
+	const HeatVectorData<Scalar> &data,
+	const Eigen::MatrixBase<DerivedOmega> &Omega,
+	Eigen::VectorXi &res);
 
 }
 

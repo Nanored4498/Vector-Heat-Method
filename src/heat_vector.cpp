@@ -29,9 +29,11 @@ void igl::complex_to_vector(
 	Eigen::Matrix<Scalar, 1, 3> e1 = V.row(j) - V.row(vertex), e2 = V.row(k) - V.row(vertex);
 	e1.normalize();
 	e2.normalize();
-	Scalar x = (t - t0) / (t1 - t0) * M_PI_2;
-	vec = e1 * std::cos(x) + e2 * std::sin(x);
-	vec.normalize();
+	Scalar d = e1.dot(e2);
+	e2 -= d * e1;
+	e2.normalize();
+	t = (t - t0) / (t1 - t0) * std::acos(d);
+	vec = e1 * std::cos(t) + e2 * std::sin(t);
 	vec *= r;
 
 }
@@ -300,36 +302,6 @@ void igl::heat_vector_solve(
 
 }
 
-template <typename Scalar, typename DerivedOmega>
-void igl::heat_voronoi_solve(
-	const HeatVectorData<Scalar> &data,
-	const Eigen::MatrixBase<DerivedOmega> &Omega,
-	Eigen::VectorXi &res) {
-
-	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> VectorXS;
-
-	int n = data.neighbors.size();
-
-	VectorXS u0 = VectorXS::Zero(n), phi0 = VectorXS::Zero(n);
-	for(int i = 0; i < Omega.size(); ++i) {
-		int x = Omega(i);
-		u0(x) = i;
-		phi0(x) = 1.0;
-	}
-	VectorXS u = data.scal_solver.solve(u0);
-	VectorXS phi = data.scal_solver.solve(phi0);
-	res.resize(n);
-	for(int i = 0; i < n; ++i)
-		res(i) = std::max(0, std::min(int(Omega.size())-1, int(0.5+u(i)/phi(i))));
-	for(int i = 0; i < n; ++i) {
-		int count = 0;
-		for(const std::pair<int, Scalar> &p : data.neighbors[i])
-			if(res(p.first) == res(i)) ++count;
-		if(count < 0.7*data.neighbors[i].size()) res(i) = -1;
-	}
-
-}
-
 template <typename Scalar>
 void igl::heat_R_solve(
 	const HeatVectorData<Scalar> &data,
@@ -426,6 +398,79 @@ void igl::heat_log_solve(
 			res(j) += Scalar(coord[i]) / dother * std::polar(r(j), std::arg(R(j)) - std::arg(H(j)));
 	}
 	res *= sdo / Scalar(Omega.size());
+
+}
+
+template <typename Scalar, typename DerivedV, typename DerivedF, typename DerivedCoord, typename DerivedDensity>
+void igl::heat_mean(
+	const HeatVectorData<Scalar> &data,
+	const Eigen::MatrixBase<DerivedV> &V,
+	const Eigen::MatrixBase<DerivedF> &F,
+	int &face,
+	Eigen::MatrixBase<DerivedCoord> &coord,
+	Eigen::MatrixBase<DerivedDensity> &density,
+	Scalar tau,
+	int maxSteps,
+	Scalar vStop) {
+
+	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> VectorXS;
+	typedef Eigen::Matrix<Scalar, 3, 1> Vector3S;
+	typedef std::complex<Scalar> Complex;
+	typedef Eigen::Matrix<Complex, Eigen::Dynamic, 1> VectorXC;
+
+	Scalar r, t;
+	VectorXC Log;
+	int step = 0;
+	do {
+		++ step;
+		igl::heat_log_solve(data, F.row(face), coord, Log);
+		Complex cv = 0;
+		for(int i = 0; i < V.rows(); ++i) cv += density[i] * Log(i);
+		r = std::abs(cv), t = std::arg(cv);
+		if(t < 0) t += 2*M_PI;
+		int i = F(face, 0), j = F(face, 1), k = F(face, 2), ind = 0;
+		while(data.neighbors[i][ind].first != j) ++ind;
+		Scalar t0 = data.neighbors[i][ind].second;
+		Scalar t1 = ind+1 < data.neighbors[i].size() ? data.neighbors[i][ind+1].second : 2*M_PI;
+		Eigen::Matrix<Scalar, 1, 3> e1 = V.row(j) - V.row(i), e2 = V.row(k) - V.row(i);
+		e1.normalize();
+		e2.normalize();
+		Scalar d = e1.dot(e2);
+		e2 -= d * e1;
+		e2.normalize();
+		t = (t - t0) / (t1 - t0) * std::acos(d);
+		Vector3S v = e1 * std::cos(t) + e2 * std::sin(t);
+	} while(r > vStop && step < maxSteps);
+
+}
+
+template <typename Scalar, typename DerivedOmega>
+void igl::heat_voronoi_solve(
+	const HeatVectorData<Scalar> &data,
+	const Eigen::MatrixBase<DerivedOmega> &Omega,
+	Eigen::VectorXi &res) {
+
+	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> VectorXS;
+
+	int n = data.neighbors.size();
+
+	VectorXS u0 = VectorXS::Zero(n), phi0 = VectorXS::Zero(n);
+	for(int i = 0; i < Omega.size(); ++i) {
+		int x = Omega(i);
+		u0(x) = i;
+		phi0(x) = 1.0;
+	}
+	VectorXS u = data.scal_solver.solve(u0);
+	VectorXS phi = data.scal_solver.solve(phi0);
+	res.resize(n);
+	for(int i = 0; i < n; ++i)
+		res(i) = std::max(0, std::min(int(Omega.size())-1, int(0.5+u(i)/phi(i))));
+	for(int i = 0; i < n; ++i) {
+		int count = 0;
+		for(const std::pair<int, Scalar> &p : data.neighbors[i])
+			if(res(p.first) == res(i)) ++count;
+		if(count < 0.7*data.neighbors[i].size()) res(i) = -1;
+	}
 
 }
 
