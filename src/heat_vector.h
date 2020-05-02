@@ -95,12 +95,11 @@ void heat_log_solve(
 	int vertex,
 	Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> &res);
 
-template <typename Scalar, typename DerivedOmega, typename DerivedCoord, typename DerivedV>
+template <typename Scalar, typename DerivedOmega, typename DerivedCoord>
 void heat_log_solve(
 	const HeatVectorData<Scalar> &data,
 	const Eigen::MatrixBase<DerivedOmega> &Omega,
 	const Eigen::MatrixBase<DerivedCoord> &coord,
-	const Eigen::MatrixBase<DerivedV> &V,
 	Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> &res);
 
 }

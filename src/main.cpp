@@ -137,12 +137,15 @@ int main(int argc, char *argv[]) {
 
 	int clicked_vertex = -1;
 	viewer.callback_mouse_down = [&](igl::opengl::glfw::Viewer& viewer, int but, int modif)->bool {
-		if(but != GLFW_MOUSE_BUTTON_LEFT || (modif & GLFW_MOD_SHIFT)) return false;
+		if(but != GLFW_MOUSE_BUTTON_LEFT || (modif & GLFW_MOD_SHIFT)) {
+			return false;
+		}
 		clicked_vertex = get_vertex();
 		return clicked_vertex >= 0;
 	};
 
-	viewer.callback_mouse_move = [&clicked_vertex](igl::opengl::glfw::Viewer& viewer, int, int)->bool {
+	viewer.callback_mouse_move = [&clicked_vertex](igl::opengl::glfw::Viewer& viewer, int, int modif)->bool {
+		if(modif & GLFW_MOD_SHIFT) clicked_vertex = -1;
 		return clicked_vertex >= 0;
 	};
 
@@ -156,7 +159,7 @@ int main(int argc, char *argv[]) {
 				Omega.resize(1);
 				Omega(0) = clicked_vertex;
 				viewer.data(X_id).clear();
-				viewer.data(X_id).add_points(v, X_color);
+				viewer.data(X_id).add_points(mode == COMPUTE_H_R ? v : pos, X_color);
 				return false;
 			}
 			if(X_ind_in_data[clicked_vertex] < 0) {
@@ -247,16 +250,7 @@ int main(int argc, char *argv[]) {
 				viewer.data(mesh_id).set_colors(res);
 				break;
 			case COMPUTE_H_R:
-				{
-				Eigen::VectorXcd tmpR;
-				barX.setZero();
-				for(int i = 0; i < 3; ++i) {
-					igl::heat_R_solve(hvm_data, F(fid, i), tmpR);
-					barX += bc[i] * tmpR;
-				}
-				for(int i = 0; i < barX.rows(); ++i) barX(i) /= std::abs(barX(i));
-				}
-				// igl::heat_R_solve(hvm_data, Omega(0), barX);
+				igl::heat_R_solve(hvm_data, Omega(0), barX);
 				barX *= 0.6*avg_l;
 				barX_to_res();
 				igl::heat_geodesics_solve(geod_data, Omega, D);
@@ -278,7 +272,7 @@ int main(int argc, char *argv[]) {
 				viewer.data(res_id).add_edges(V, V + res, res_col);
 				break;
 			case COMPUTE_LOG:
-				igl::heat_log_solve(hvm_data, F.row(fid), bc, V, barX);
+				igl::heat_log_solve(hvm_data, F.row(fid), bc, barX);
 				barX /= barX.cwiseAbs().colwise().maxCoeff().coeff(0);
 				res_col.resize(V.rows(), 3);
 				for(int i = 0; i < V.rows(); ++i)

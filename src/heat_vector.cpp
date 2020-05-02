@@ -382,18 +382,16 @@ void igl::heat_log_solve(
 	VectorXS r = data.poisson_solver.solve(div_R);
 	r.array() -= r(vertex);
 	
-	res.resize(n);
 	for(int i = 0; i < n; ++i)
 		res(i) = std::polar(r(i), std::arg(R(i)) - std::arg(H(i)));
 
 }
 
-template <typename Scalar, typename DerivedOmega, typename DerivedCoord, typename DerivedV>
+template <typename Scalar, typename DerivedOmega, typename DerivedCoord>
 void igl::heat_log_solve(
 	const HeatVectorData<Scalar> &data,
 	const Eigen::MatrixBase<DerivedOmega> &Omega,
 	const Eigen::MatrixBase<DerivedCoord> &coord,
-	const Eigen::MatrixBase<DerivedV> &V,
 	Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, 1> &res) {
 
 	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> VectorXS;
@@ -401,40 +399,33 @@ void igl::heat_log_solve(
 	typedef Eigen::Matrix<Complex, Eigen::Dynamic, 1> VectorXC;
 
 	int n = data.neighbors.size();
-
-	VectorXC H, R = VectorXC::Zero(n), tmpR;
-	igl::heat_vector_solve(data, (Eigen::VectorXi(1) << Omega[0]).finished(),  (VectorXC(1) << 1.).finished(), H);
-	for(int i = 0; i < Omega.size(); ++i) {
-		igl::heat_R_solve(data, Omega[i], tmpR);
-		R += coord[i] * tmpR;
-	}
-	for(int i = 0; i < n; ++i) R(i) /= std::abs(R(i));
-	
-	VectorXS div_R = VectorXS::Zero(n);
-	const auto dot = [](const Complex &a, const Complex &b)->Scalar { return a.real()*b.real() + a.imag()*b.imag(); };
-	for(int i = 0; i < n; ++i) {
-		for(const igl::HeatLogData<Scalar> &hld : data.log_data[i]) {
-			Scalar d = dot(hld.w, R(i));
-			div_R(i) -= d;
-			div_R(hld.j) += d;
-		}
-	}
-	VectorXS r = data.poisson_solver.solve(div_R);
-	Eigen::Matrix<Scalar, 1, Eigen::Dynamic> pos(1, V.cols());
-	pos.setZero();
-	for(int i = 0; i < Omega.size(); ++i) pos += coord[i] * V.row(Omega[i]);
-	Scalar tr0 = 0, r0 = 0;
-	for(int i = 0; i < Omega.size(); ++i) {
-		tr0 += coord[i] * (V.row(Omega[i]) - pos).norm();
-		r0 += coord[i] * r(Omega[i]);
-	}
-	r.array() += tr0 - r0;
-	// std::cerr << r.minCoeff() << " " << r.maxCoeff() << " " << pos << std::endl;
-	// for(int i = 0; i < Omega.size(); ++i) std::cerr << r(Omega[i]) << " " << (V.row(Omega[i]) - pos).norm()  << " " << V.row(Omega[i])<< std::endl;
-	
 	res.resize(n);
-	for(int i = 0; i < n; ++i)
-		res(i) = std::polar(r(i), std::arg(R(i)) - std::arg(H(i)));
+	res.setZero();
+
+	VectorXC H, R(n);
+	VectorXS div_R(n), r;
+	igl::heat_vector_solve(data, (Eigen::VectorXi(1) << Omega[0]).finished(),  (VectorXC(1) << 1.).finished(), H);
+	const auto dot = [](const Complex &a, const Complex &b)->Scalar { return a.real()*b.real() + a.imag()*b.imag(); };
+	Scalar sdo = 0;
+	for(int i = 0; i < Omega.size(); ++i) {
+		igl::heat_R_solve(data, Omega[i], R);
+		div_R.setZero();
+		for(int j = 0; j < n; ++j) {
+			for(const igl::HeatLogData<Scalar> &hld : data.log_data[j]) {
+				Scalar d = dot(hld.w, R(j));
+				div_R(j) -= d;
+				div_R(hld.j) += d;
+			}
+		}
+		r = data.poisson_solver.solve(div_R);
+		r.array() -= r(Omega[i]);
+		Scalar dother=0;
+		for(int j = 0; j < Omega.size(); ++j) dother += r(Omega[j]);
+		sdo += dother;
+		for(int j = 0; j < n; ++j)
+			res(j) += Scalar(coord[i]) / dother * std::polar(r(j), std::arg(R(j)) - std::arg(H(j)));
+	}
+	res *= sdo / Scalar(Omega.size());
 
 }
 
@@ -447,4 +438,4 @@ template void igl::heat_vector_solve<double, Eigen::Matrix<int, -1, 1, 0, -1, 1>
 template void igl::heat_voronoi_solve<double, Eigen::Matrix<int, -1, 1, 0, -1, 1>>(igl::HeatVectorData<double> const&, Eigen::MatrixBase<Eigen::Matrix<int, -1, 1, 0, -1, 1>> const&, Eigen::VectorXi &);
 template void igl::heat_R_solve<double>(igl::HeatVectorData<double> const&,	int, Eigen::Matrix<std::complex<double>, -1, 1> &);
 template void igl::heat_log_solve<double>(igl::HeatVectorData<double> const&, int, Eigen::Matrix<std::complex<double>, -1, 1> &);
-template void igl::heat_log_solve<double, Eigen::Block<Eigen::Matrix<int, -1, -1, 0, -1, -1>, 1, -1, false>, Eigen::Matrix<float, 3, 1, 0, 3, 1>, Eigen::Matrix<double, -1, -1, 0, -1, -1> >(igl::HeatVectorData<double> const&, Eigen::MatrixBase<Eigen::Block<Eigen::Matrix<int, -1, -1, 0, -1, -1>, 1, -1, false> > const&, Eigen::MatrixBase<Eigen::Matrix<float, 3, 1, 0, 3, 1> > const&, Eigen::MatrixBase<Eigen::Matrix<double, -1, -1, 0, -1, -1> > const&, Eigen::Matrix<std::complex<double>, -1, 1, 0, -1, 1>&);
+template void igl::heat_log_solve<double, Eigen::Block<Eigen::Matrix<int, -1, -1, 0, -1, -1>, 1, -1, false>, Eigen::Matrix<float, 3, 1, 0, 3, 1> >(igl::HeatVectorData<double> const&, Eigen::MatrixBase<Eigen::Block<Eigen::Matrix<int, -1, -1, 0, -1, -1>, 1, -1, false> > const&, Eigen::MatrixBase<Eigen::Matrix<float, 3, 1, 0, 3, 1> > const&, Eigen::Matrix<std::complex<double>, -1, 1, 0, -1, 1>&);
